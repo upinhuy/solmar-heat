@@ -1,61 +1,68 @@
-// Every tuning number and colour in one place. The playfield is a fixed 1280x720 logical area;
-// the renderer scales it to the window, so no rule below depends on the screen size.
+// Solmar Heat: shared constants. One place for every number the rest of the game tunes from.
+export const WORLD = 2400; // the city is WORLD x WORLD world units
+export const ROAD_GAP = 300; // distance between street centrelines
+export const ROAD_WIDTH = 64; // drivable width of a street
+export const FIRST_ROAD = 150; // centreline of the first street
 
-export const FIELD = { width: 1280, height: 720, groundY: 664 };
-
-/** The simulation's fixed step, in seconds: 60 updates a second whatever the display's rate. */
-export const STEP = 1 / 60;
+export const STEP = 1 / 60; // fixed simulation step, seconds
 
 export const PLAYER = {
-  width: 72,
-  height: 24,
-  speed: 560,
-  invulnerable: 1.5,
+  radius: 13,
+  walkSpeed: 185,
+  sprintSpeed: 265,
+  health: 100,
+  punchDamage: 14,
+  punchRange: 36,
+  punchCooldown: 0.45,
+  shootCooldown: 0.22,
+  bulletSpeed: 820,
+  bulletDamage: 26,
+  regenDelay: 6,
+  regenRate: 4,
 };
 
-export const LIVES = 3;
-
-export const BLOCK = {
-  minWidth: 40,
-  maxWidth: 110,
-  height: 36,
-  speed: 240,
-  speedPerLevel: 30,
-  speedJitter: 90,
-  interval: 0.55,
-  intervalScale: 0.88,
-  minInterval: 0.14,
-  dodgePoints: 1,
+export const CAR = {
+  radius: 17,
+  length: 46,
+  width: 24,
+  accel: 430,
+  reverseAccel: 260,
+  maxSpeed: 540,
+  maxReverse: 170,
+  brake: 720,
+  steer: 2.7,
+  grip: 2.4, // lateral velocity damping
+  drag: 0.5,
 };
 
-export const COIN = {
-  size: 24,
-  speed: 190,
-  speedPerLevel: 14,
-  interval: 1.4,
-  intervalJitter: 0.8,
-  points: 10,
+export const TRAFFIC_SPEED = 150;
+export const PED_SPEED = 55;
+
+export const WANTED_MAX = 5;
+export const COP = {
+  carSpeed: 480,
+  footSpeed: 200,
+  arrestTime: 1.4,
+  spawnDistance: 720,
+  despawnDistance: 1700,
 };
 
-/** Seconds of play per level, and the last level: speeds and spawn rates stop growing there. */
-export const LEVEL = { seconds: 12, max: 12 };
-
-/** How many falling things can exist at once; the pool is allocated once, at boot. */
-export const POOL_SIZE = 64;
-
-export const PALETTE = {
-  backdrop: '#11141b',
-  sky: '#1b1f2a',
-  ground: '#2a3040',
-  player: '#4fc3f7',
-  block: '#e5534b',
-  coin: '#f2c94c',
-  panel: '#252b38',
-  text: '#eef1f5',
-  muted: '#8b93a3',
+export const COLORS = {
+  grass: '#2e5d3a',
+  grassDark: '#274f31',
+  road: '#3a3f46',
+  roadLine: '#d8c95a',
+  sidewalk: '#6d6a63',
+  building: ['#7a5a44', '#5d6b7a', '#8a6f4d', '#4d5d6b', '#75604f', '#66755a'],
+  roof: ['#4a3a2e', '#3d4a57', '#5d4a35', '#37424e'],
+  player: '#e8b23a',
+  playerDark: '#8a6420',
+  copCar: '#1c2733',
+  copBlue: '#2f6fd0',
+  copRed: '#d0342c',
+  mission: '#f2c230',
+  cash: '#7fd069',
+  hud: '#10141a',
 };
 
-export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-
-/** Where the best score is kept between visits (this browser only). */
-export const BEST_KEY = 'block-dodger.best';
+export const SAVE_KEY = 'solmar-heat-save-v1';

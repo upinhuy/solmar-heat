@@ -1,124 +1,145 @@
-// The game's rules and state, with no drawing and no browser in it: the player's paddle, the
-// pool of falling blocks and coins, spawning, collisions, score, lives and level. step() advances
-// one fixed step and returns what happened as bit flags, so the caller can react without the
-// world knowing about screens or sound. Nothing here allocates after createWorld returns.
-import { BLOCK, COIN, FIELD, LEVEL, LIVES, PLAYER, POOL_SIZE } from './config.js';
+// The city of Solmar: an 8x8 grid of streets, blocks full of buildings, trees and lamps, and
+// the helpers the rest of the game uses to ask the city questions (is this a road? does this
+// circle hit a building? where is the nearest street?). Nothing here draws or listens to input.
+import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, WORLD } from './config.js';
+import { clamp, pick, range } from './random.js';
 
-export const KIND_BLOCK = 0;
-export const KIND_COIN = 1;
+export const ROADS = [];
+for (let i = 0; i < 8; i += 1) ROADS.push(FIRST_ROAD + i * ROAD_GAP);
 
-export const EVENT_HIT = 1;
-export const EVENT_COIN = 2;
-export const EVENT_OVER = 4;
-
-function overlaps(a, b) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+export function isOnRoad(x, y) {
+  const half = ROAD_WIDTH / 2;
+  for (const r of ROADS) {
+    if (Math.abs(x - r) <= half || Math.abs(y - r) <= half) return true;
+  }
+  return false;
 }
 
-export function createWorld(random) {
-  const player = { x: 0, y: FIELD.groundY - PLAYER.height, width: PLAYER.width, height: PLAYER.height, invulnerable: 0 };
-  const items = [];
-  for (let index = 0; index < POOL_SIZE; index += 1) {
-    items.push({ active: false, kind: KIND_BLOCK, x: 0, y: 0, width: 0, height: 0, speed: 0 });
+/** The street centreline nearest to a coordinate. */
+export function nearestRoadLine(v) {
+  let best = ROADS[0];
+  for (const r of ROADS) if (Math.abs(v - r) < Math.abs(v - best)) best = r;
+  return best;
+}
+
+/**
+ * The next point to aim at when driving from `from` to `to` through the street grid: the
+ * destination itself when both are on one street, otherwise the intersection that puts the
+ * driver on the destination's street. Keeps cars on roads instead of through buildings.
+ */
+export function gridTarget(from, to) {
+  const fx = nearestRoadLine(from.x);
+  const fy = nearestRoadLine(from.y);
+  const tx = nearestRoadLine(to.x);
+  const ty = nearestRoadLine(to.y);
+  const sameStreet = (fx === tx && Math.abs(from.x - to.x) < 90) || (fy === ty && Math.abs(from.y - to.y) < 90);
+  if (sameStreet) return { x: to.x, y: to.y };
+  const a = { x: tx, y: fy };
+  const b = { x: fx, y: ty };
+  const da = (from.x - a.x) ** 2 + (from.y - a.y) ** 2;
+  const db = (from.x - b.x) ** 2 + (from.y - b.y) ** 2;
+  return da <= db ? a : b;
+}
+export function nearestRoadPoint(x, y) {
+  let bestX = ROADS[0];
+  let bestY = ROADS[0];
+  for (const r of ROADS) {
+    if (Math.abs(x - r) < Math.abs(x - bestX)) bestX = r;
+    if (Math.abs(y - r) < Math.abs(y - bestY)) bestY = r;
   }
-  const state = { player, items, score: 0, lives: LIVES, level: 1, elapsed: 0, blockTimer: 0, coinTimer: 0 };
+  // Snap to whichever street is closer: the vertical one or the horizontal one.
+  return Math.abs(x - bestX) < Math.abs(y - bestY) ? { x: bestX, y } : { x, y: bestY };
+}
 
-  function reset() {
-    player.x = (FIELD.width - player.width) / 2;
-    player.invulnerable = 0;
-    for (const item of items) item.active = false;
-    state.score = 0;
-    state.lives = LIVES;
-    state.level = 1;
-    state.elapsed = 0;
-    state.blockTimer = BLOCK.interval;
-    state.coinTimer = COIN.interval;
+export function randomRoadPoint(random) {
+  const vertical = random() < 0.5;
+  const road = pick(random, ROADS);
+  const along = range(random, 60, WORLD - 60);
+  return vertical ? { x: road, y: along } : { x: along, y: road };
+}
+
+/** True when the circle at (x, y) with radius r touches any building. */
+export function hitsBuilding(buildings, x, y, r) {
+  for (const b of buildings) {
+    if (x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h) return b;
   }
+  return null;
+}
 
-  function freeItem() {
-    for (let index = 0; index < items.length; index += 1) if (!items[index].active) return items[index];
-    return null;
-  }
+/** Push a circle out of any building it overlaps; returns the building hit, if any. */
+export function resolveBuildings(buildings, body, r) {
+  const b = hitsBuilding(buildings, body.x, body.y, r);
+  if (!b) return null;
+  const left = body.x - (b.x - r);
+  const right = b.x + b.w + r - body.x;
+  const top = body.y - (b.y - r);
+  const bottom = b.y + b.h + r - body.y;
+  const min = Math.min(left, right, top, bottom);
+  if (min === left) body.x = b.x - r;
+  else if (min === right) body.x = b.x + b.w + r;
+  else if (min === top) body.y = b.y - r;
+  else body.y = b.y + b.h + r;
+  return b;
+}
 
-  function spawnBlock() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_BLOCK;
-    item.width = BLOCK.minWidth + random() * (BLOCK.maxWidth - BLOCK.minWidth);
-    item.height = BLOCK.height;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = BLOCK.speed + BLOCK.speedPerLevel * (state.level - 1) + random() * BLOCK.speedJitter;
-  }
-
-  function spawnCoin() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_COIN;
-    item.width = COIN.size;
-    item.height = COIN.size;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = COIN.speed + COIN.speedPerLevel * (state.level - 1);
-  }
-
-  function blockInterval() {
-    return Math.max(BLOCK.minInterval, BLOCK.interval * BLOCK.intervalScale ** (state.level - 1));
-  }
-
-  /**
-   * One fixed step. `direction` is -1, 0 or 1 (left, still, right). With `harmless` set (the title
-   * screen's backdrop) things fall but nothing touches the player and nothing scores.
-   */
-  function step(dt, direction, harmless) {
-    let events = 0;
-    state.elapsed += dt;
-    state.level = Math.min(LEVEL.max, 1 + Math.floor(state.elapsed / LEVEL.seconds));
-
-    player.x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * dt));
-    if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
-
-    state.blockTimer -= dt;
-    if (state.blockTimer <= 0) {
-      spawnBlock();
-      state.blockTimer += blockInterval();
-    }
-    state.coinTimer -= dt;
-    if (state.coinTimer <= 0) {
-      spawnCoin();
-      state.coinTimer += COIN.interval + random() * COIN.intervalJitter;
-    }
-
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      if (!item.active) continue;
-      item.y += item.speed * dt;
-      if (item.y > FIELD.groundY) {
-        item.active = false;
-        if (item.kind === KIND_BLOCK && !harmless) state.score += BLOCK.dodgePoints;
+export function createCity(random) {
+  const buildings = [];
+  const trees = [];
+  const lamps = [];
+  const half = ROAD_WIDTH / 2;
+  // One building per block, inset from the streets, with a roof colour and a height for shading.
+  for (let ix = 0; ix < 7; ix += 1) {
+    for (let iy = 0; iy < 7; iy += 1) {
+      const bx = ROADS[ix] + half + 18;
+      const by = ROADS[iy] + half + 18;
+      const bw = ROAD_GAP - ROAD_WIDTH - 36;
+      const bh = ROAD_GAP - ROAD_WIDTH - 36;
+      // A few blocks are parks instead of buildings.
+      if (random() < 0.14) {
+        for (let t = 0; t < 5; t += 1) {
+          trees.push({ x: bx + random() * bw, y: by + random() * bh, r: 9 + random() * 7 });
+        }
         continue;
       }
-      if (harmless || !overlaps(item, player)) continue;
-      if (item.kind === KIND_COIN) {
-        item.active = false;
-        state.score += COIN.points;
-        events |= EVENT_COIN;
-      } else if (player.invulnerable === 0) {
-        item.active = false;
-        state.lives -= 1;
-        player.invulnerable = PLAYER.invulnerable;
-        events |= EVENT_HIT;
-        if (state.lives === 0) {
-          events |= EVENT_OVER;
-          break;
-        }
+      const color = pick(random, COLORS.building);
+      const roof = pick(random, COLORS.roof);
+      const inset = 14 + random() * 40;
+      buildings.push({
+        x: bx + inset * 0.5,
+        y: by + inset * 0.5,
+        w: bw - inset,
+        h: bh - inset,
+        color,
+        roof,
+        height: 14 + random() * 26,
+      });
+      for (let t = 0; t < 2; t += 1) {
+        trees.push({ x: bx + random() * bw, y: by + random() * bh, r: 8 + random() * 6 });
       }
     }
-    return events;
   }
+  for (const r of ROADS) {
+    for (let d = 120; d < WORLD; d += 300) {
+      lamps.push({ x: r + half + 6, y: d });
+      lamps.push({ x: d, y: r + half + 6 });
+    }
+  }
+  return { buildings, trees, lamps };
+}
 
-  reset();
-  return { state, reset, step };
+/** A parking spot beside a street: used for parked cars and mission cars. The spot sits close
+ * to the kerb (40 from the centreline) so the parked car never overlaps the block's building:
+ * the nearest a building edge comes is 57 from the centreline, and the car is 17 in radius. */
+export function parkingSpot(random) {
+  const vertical = random() < 0.5;
+  const road = pick(random, ROADS);
+  const along = range(random, 200, WORLD - 200);
+  const side = ROAD_WIDTH / 2 + 8;
+  if (vertical) return { x: road + side, y: along, angle: Math.PI / 2 };
+  return { x: along, y: road + side, angle: 0 };
+}
+
+export function clampToWorld(body, margin) {
+  body.x = clamp(body.x, margin, WORLD - margin);
+  body.y = clamp(body.y, margin, WORLD - margin);
 }

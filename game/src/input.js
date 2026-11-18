@@ -1,47 +1,94 @@
-// Keyboard and pointer input. Held keys give a steering direction; one-shot presses (start or
-// restart, pause) are queued as bit flags and taken once by the loop, so a press between two
-// frames is never lost and never counted twice.
-
+// Keyboard and pointer input. Held keys give movement and driving; one-shot presses (start,
+// pause, enter a car, mute) are queued as bit flags and taken once by the loop, so a press
+// between two frames is never lost and never counted twice.
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
+export const ACTION_ENTER = 4;
+export const ACTION_MUTE = 8;
+export const ACTION_NEW = 16;
+export const ACTION_PUNCH = 32;
 
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const CONFIRM = new Set(['Space', 'Enter']);
+const CONFIRM = new Set(['Enter', 'Space']);
 const PAUSE = new Set(['KeyP', 'Escape']);
+const ENTER = new Set(['KeyE']);
+const MUTE = new Set(['KeyM']);
+const NEW = new Set(['KeyN']);
+const PUNCH = new Set(['KeyF']);
 
-export function createInput(target) {
-  let left = false;
-  let right = false;
+export function createInput(canvas) {
+  const keys = new Set();
   let actions = 0;
+  let mouseX = 0;
+  let mouseY = 0;
+  let mouseDown = false;
+  let clicked = false;
 
-  window.addEventListener('keydown', (event) => {
-    if (LEFT.has(event.code)) left = true;
-    else if (RIGHT.has(event.code)) right = true;
-    else if (CONFIRM.has(event.code)) {
+  function onKeyDown(event) {
+    if (CONFIRM.has(event.code)) {
       if (!event.repeat) actions |= ACTION_CONFIRM;
+      event.preventDefault();
     } else if (PAUSE.has(event.code)) {
       if (!event.repeat) actions |= ACTION_PAUSE;
-    } else return;
-    event.preventDefault();
-  });
-  window.addEventListener('keyup', (event) => {
-    if (LEFT.has(event.code)) left = false;
-    else if (RIGHT.has(event.code)) right = false;
-  });
-  // A key released while the tab is hidden never sends keyup: let go of everything on blur.
-  window.addEventListener('blur', () => {
-    left = false;
-    right = false;
-  });
-  target.addEventListener('pointerdown', () => {
+      event.preventDefault();
+    } else if (ENTER.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_ENTER;
+    } else if (MUTE.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_MUTE;
+    } else if (NEW.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_NEW;
+    } else if (PUNCH.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_PUNCH;
+    }
+    keys.add(event.code);
+  }
+  function onKeyUp(event) {
+    keys.delete(event.code);
+  }
+  function onBlur() {
+    keys.clear();
+    mouseDown = false;
+  }
+  function onMove(event) {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = event.clientX - rect.left;
+    mouseY = event.clientY - rect.top;
+  }
+
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onBlur);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerdown', (event) => {
+    onMove(event);
+    mouseDown = true;
+    clicked = true;
     actions |= ACTION_CONFIRM;
+  });
+  canvas.addEventListener('pointerup', () => {
+    mouseDown = false;
   });
 
   return {
-    /** -1 for left, 1 for right, 0 for neither or both. */
-    direction() {
-      return (right ? 1 : 0) - (left ? 1 : 0);
+    /** WASD/arrows as {x, y} in -1..1. */
+    move() {
+      const x = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+      const y = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
+      return { x, y };
+    },
+    sprint() {
+      return keys.has('ShiftLeft') || keys.has('ShiftRight');
+    },
+    handbrake() {
+      return keys.has('Space');
+    },
+    mouse() {
+      return { x: mouseX, y: mouseY, down: mouseDown };
+    },
+    /** True once after a click (mouse or touch), for shooting. */
+    takeClick() {
+      const was = clicked;
+      clicked = false;
+      return was;
     },
     /** The one-shot presses since the last call, as ACTION_* flags. */
     takeActions() {
