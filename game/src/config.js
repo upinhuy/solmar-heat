@@ -21,6 +21,14 @@ export const PLAYER = {
   regenRate: 4,
 };
 
+// How much of the city is alive when a run starts. More traffic and more pedestrians make
+// the streets feel crowded, which is what the screenshots and the driving both feed on.
+export const CITY_POPULATION = {
+  parkedCars: 12,
+  trafficCars: 16,
+  pedestrians: 34,
+};
+
 export const CAR = {
   radius: 17,
   length: 46,
@@ -45,6 +53,8 @@ export const COP = {
   arrestTime: 1.4,
   spawnDistance: 720,
   despawnDistance: 1700,
+  roadblockMinStars: 4, // at this heat the PD starts parking cars across the road ahead
+  aimLead: 0.35, // seconds of player travel the chase cars aim ahead by
 };
 
 export const COLORS = {
@@ -53,6 +63,7 @@ export const COLORS = {
   road: '#3a3f46',
   roadLine: '#d8c95a',
   sidewalk: '#6d6a63',
+  crosswalk: '#cfd4d9',
   building: ['#7a5a44', '#5d6b7a', '#8a6f4d', '#4d5d6b', '#75604f', '#66755a'],
   roof: ['#4a3a2e', '#3d4a57', '#5d4a35', '#37424e'],
   player: '#e8b23a',
@@ -63,6 +74,15 @@ export const COLORS = {
   mission: '#f2c230',
   cash: '#7fd069',
   hud: '#10141a',
+  water: '#1d4e6b',
+  waterLight: '#2a6a8f',
+  boardwalk: '#8a6f4d',
+  boardwalkDark: '#6f573c',
+  sand: '#c9b27a',
+  plaza: '#7d7468',
+  race: '#3fd06a',
+  courier: '#39c2d7',
+  hostile: '#a03a5e',
 };
 
 export const SAVE_KEY = 'solmar-heat-save-v1';

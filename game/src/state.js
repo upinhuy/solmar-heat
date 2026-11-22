@@ -1,7 +1,7 @@
 // The game state and one fixed simulation step. No drawing and no browser calls here: the
 // loop in main.js and the shot scenes in shots.js both drive the game through stepGame().
 // stepGame returns the events that happened, so the caller can play sounds and announce them.
-import { CAR, PLAYER, SAVE_KEY, STEP, WORLD } from './config.js';
+import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, WORLD } from './config.js';
 import { createRandom, distance, pick } from './random.js';
 import { createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import {
@@ -12,13 +12,22 @@ import {
   makePed,
   makeParticle,
   sparks,
+  tyreSmoke,
   updateBullet,
   updateParticle,
   updatePed,
   updateTraffic,
 } from './vehicles.js';
 import { addWanted, createPolice, updatePolice } from './police.js';
-import { createMissions, currentObjective, startMission, updateMissions } from './missions.js';
+import {
+  MISSIONS,
+  activityObjective,
+  createMissions,
+  currentObjective,
+  startMission,
+  updateActivities,
+  updateMissions,
+} from './missions.js';
 
 export function loadSave() {
   try {
@@ -36,7 +45,13 @@ export function saveGame(game) {
   try {
     window.localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ cash: game.cash, missionIndex: game.missions.index, sportUnlocked: game.missions.sportUnlocked }),
+      JSON.stringify({
+        cash: game.cash,
+        missionIndex: game.missions.index,
+        sportUnlocked: game.missions.sportUnlocked,
+        races: game.missions.stats.races,
+        deliveries: game.missions.stats.deliveries,
+      }),
     );
   } catch {
     // Storage can be off: the save then lasts this visit only.
@@ -84,19 +99,21 @@ export function createGame(seed, saved) {
     },
   };
   // Parked cars and traffic.
-  for (let i = 0; i < 10; i += 1) game.cars.push(makeCar(rng, {}));
-  for (let i = 0; i < 12; i += 1) {
+  for (let i = 0; i < CITY_POPULATION.parkedCars; i += 1) game.cars.push(makeCar(rng, {}));
+  for (let i = 0; i < CITY_POPULATION.trafficCars; i += 1) {
     const spot = randomRoadPoint(rng);
     const car = makeCar(rng, { x: spot.x, y: spot.y, angle: 0, traffic: true });
     car.target = randomRoadPoint(rng);
     game.cars.push(car);
   }
-  for (let i = 0; i < 24; i += 1) game.peds.push(makePed(rng));
+  for (let i = 0; i < CITY_POPULATION.pedestrians; i += 1) game.peds.push(makePed(rng));
   if (saved) {
     game.cash = saved.cash || 0;
     game.missions.sportUnlocked = !!saved.sportUnlocked;
-    if ((saved.missionIndex || 0) >= 5) {
-      game.missions.index = 5;
+    game.missions.stats.races = saved.races || 0;
+    game.missions.stats.deliveries = saved.deliveries || 0;
+    if ((saved.missionIndex || 0) >= MISSIONS.length) {
+      game.missions.index = MISSIONS.length;
       game.missions.finishedAll = true;
     } else {
       game.missions.index = saved.missionIndex || 0;
@@ -227,7 +244,9 @@ export function stepGame(game, input, dt) {
     player.x = car.x;
     player.y = car.y;
     player.angle = car.angle;
-    if (Math.abs(car.vx) + Math.abs(car.vy) > 60 && game.rng() < dt * 8) exhaust(game, car);
+    const speed = Math.hypot(car.vx, car.vy);
+    if (speed > 60 && game.rng() < dt * 8) exhaust(game, car);
+    if (input.handbrake && speed > 200 && game.rng() < dt * 30) tyreSmoke(game, car);
     // Running a pedestrian over.
     for (const ped of game.peds) {
       if (ped.down > 0) continue;
@@ -260,7 +279,7 @@ export function stepGame(game, input, dt) {
 
   // Traffic and pedestrians keep the city alive.
   for (const car of game.cars) {
-    if (car.traffic) updateTraffic(car, dt, game.rng, game.city.buildings);
+    if (car.traffic) updateTraffic(car, dt, game.rng, game.city.buildings, game.cars);
   }
   // Gentle separation so moving traffic does not stack on one spot. Parked cars, mission
   // cars and the player's car are never shoved: a shove could push one into a building,
@@ -282,16 +301,28 @@ export function stepGame(game, input, dt) {
       }
     }
   }
+  // Pedestrians scatter when the player's car bears down on them fast.
+  const threat = player.inCar && player.car
+    ? { x: player.x, y: player.y, danger: Math.hypot(player.car.vx, player.car.vy) > 170 }
+    : { x: player.x, y: player.y, danger: false };
   for (const ped of game.peds) {
-    if (ped.contact) continue; // mission contacts stand still
-    updatePed(ped, dt, game.rng);
+    if (ped.contact || ped.hostile) continue; // mission people are driven by missions.js
+    updatePed(ped, dt, game.rng, threat);
   }
 
-  // Bullets fly and hit people and police cars.
+  // Bullets fly and hit people and police cars. A rival's bullet (hostile) hunts the player.
   for (let i = game.bullets.length - 1; i >= 0; i -= 1) {
     const b = game.bullets[i];
     if (!updateBullet(b, dt, game.city.buildings)) {
       game.bullets.splice(i, 1);
+      continue;
+    }
+    if (b.hostile) {
+      if (!player.inCar && distance(b.x, b.y, player.x, player.y) < 14) {
+        hurtPlayer(game, 7);
+        sparks(game, player.x, player.y, 5);
+        game.bullets.splice(i, 1);
+      }
       continue;
     }
     let hit = false;
@@ -330,7 +361,8 @@ export function stepGame(game, input, dt) {
 
   const busted = updatePolice(game, dt, events);
   updateMissions(game, dt, events);
-  game.objectiveText = currentObjective(game);
+  updateActivities(game, dt, events);
+  game.objectiveText = activityObjective(game) || currentObjective(game);
 
   // Health comes back slowly when nobody has hurt the player lately.
   if (game.time - player.lastHurt > PLAYER.regenDelay && player.health < PLAYER.health) {

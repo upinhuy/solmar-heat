@@ -14,8 +14,25 @@ export function range(random, min, max) {
   return min + random() * (max - min);
 }
 
+/** A whole number from min to max, both ends included. */
+export function intRange(random, min, max) {
+  return min + Math.floor(random() * (max - min + 1));
+}
+
 export function pick(random, list) {
   return list[Math.floor(random() * list.length)];
+}
+
+/** A shuffled copy of the list (Fisher-Yates with the seeded generator). */
+export function shuffled(random, list) {
+  const copy = list.slice();
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    const tmp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = tmp;
+  }
+  return copy;
 }
 
 export function clamp(value, min, max) {

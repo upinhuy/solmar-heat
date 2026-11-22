@@ -1,13 +1,17 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Five missions in order, each a small state machine with an objective, a map marker, dialogue
-// and a cash reward. A failed mission restarts itself; finishing one starts the next.
-import { CAR } from './config.js';
-import { distance, pick } from './random.js';
-import { cashBurst, makeCar, makeSportCar } from './vehicles.js';
-import { parkingSpot, randomRoadPoint } from './world.js';
-import { setWanted } from './police.js';
+// Eight missions in order, each a small state machine with an objective, a map marker,
+// dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
+// next. Between story jobs, two repeatable side activities pay cash: street races from the
+// green flag and courier runs from the depot — they run on their own state, alongside
+// whatever the story is doing.
+import { distance } from './random.js';
+import { cashBurst, makeCar, makePed, makeSportCar } from './vehicles.js';
+import { MARINA, SHOWROOM_SPOT, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { addWanted, setWanted } from './police.js';
 
 export const HIDEOUT = { x: 150, y: 2100 };
+export const RACE_START = { x: 750, y: 750 }; // the green flag, north-west of centre
+export const COURIER_DEPOT = { x: 1650, y: 450 }; // the courier depot, north-east
 
 export const MISSIONS = [
   {
@@ -46,6 +50,27 @@ export const MISSIONS = [
     intro: ['Mara Solis: "Last one, Rico. The armoured car. Take it, lose the heat, bring it home."', '"Do this and Solmar is yours."'],
     objectives: ['Steal the armoured car', 'Lose the heat — reach 0 stars', 'Drive to the hideout'],
   },
+  {
+    id: 'convoy',
+    name: 'The Convoy',
+    reward: 1800,
+    intro: ['Mara Solis: "A rival crew is moving product across Solmar in a brown van."', '"Follow it. When it parks, the van — and everything in it — is ours."'],
+    objectives: ['Follow the rival van until it parks', 'Steal the van', 'Deliver the van to the hideout'],
+  },
+  {
+    id: 'showdown',
+    name: 'Harbour Showdown',
+    reward: 2200,
+    intro: ['Mara Solis: "The harbour crew wants a meet at the marina. It is a trap, obviously."', '"So walk in ready. Four of them, one of you. The cash case is the point."'],
+    objectives: ['Go to the marina meet', 'Drop all four rivals', 'Grab the cash case'],
+  },
+  {
+    id: 'finale',
+    name: 'One Last Ride',
+    reward: 4000,
+    intro: ['Mara Solis: "One last ride, Rico. The Vortex GT at the marina showroom."', '"Take it, shake a five-star heat, and park it at the hideout. Then Solmar is truly yours."'],
+    objectives: ['Take the Vortex GT from the marina showroom', 'Lose the heat — reach 0 stars', 'Park it at the hideout'],
+  },
 ];
 
 export function createMissions() {
@@ -61,8 +86,24 @@ export function createMissions() {
     missionCar: null,
     marker: null,
     door: null,
+    vanState: null, // convoy: 'driving' while the van rolls, 'parked' once it stops
+    parkPoint: null,
+    casePoint: null, // showdown: where the cash case waits
+    hostiles: [], // showdown: the rival peds, who shoot back
     finishedAll: false,
     sportUnlocked: false,
+    // Side activities (street race / courier run), independent of the story.
+    activity: {
+      kind: null, // null | 'race' | 'delivery'
+      step: 0, // delivery: 0 = fetch the package, 1 = drop it off
+      timer: 0,
+      checkpoints: [],
+      cp: 0,
+      marker: null,
+      par: 0,
+      cooldown: 0,
+    },
+    stats: { races: 0, deliveries: 0 },
   };
 }
 
@@ -86,7 +127,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-4): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-7): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -101,6 +142,10 @@ export function startMission(game, index) {
   m.missionCar = null;
   m.marker = null;
   m.door = null;
+  m.vanState = null;
+  m.parkPoint = null;
+  m.casePoint = null;
+  m.hostiles = [];
   const player = game.player;
   if (def.id === 'getaway') {
     m.missionCar = placeMissionCar(game, 'mission', '#b8443a');
@@ -127,6 +172,27 @@ export function startMission(game, index) {
   } else if (def.id === 'heist') {
     m.missionCar = placeMissionCar(game, 'mission', '#2c3e50');
     m.marker = { x: m.missionCar.x, y: m.missionCar.y };
+  } else if (def.id === 'convoy') {
+    const spot = randomRoadPoint(game.rng);
+    const van = makeCar(game.rng, { x: spot.x, y: spot.y, angle: 0, kind: 'mission', shape: 'van', color: '#5a4632', missionCar: true, traffic: true, speedTarget: 120 });
+    van.holdTarget = true; // the mission sets the van's target every step; traffic must not re-pick it
+    van.loop = [];
+    for (let i = 0; i < 4; i += 1) van.loop.push(randomRoadPoint(game.rng));
+    van.target = van.loop[0];
+    game.cars.push(van);
+    m.missionCar = van;
+    m.vanState = 'driving';
+    m.parkPoint = farPoint(game, spot, 900);
+    m.marker = { x: van.x, y: van.y };
+  } else if (def.id === 'showdown') {
+    m.marker = { x: MARINA.x, y: MARINA.y };
+  } else if (def.id === 'finale') {
+    const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
+    car.angle = SHOWROOM_SPOT.angle;
+    car.missionCar = true;
+    game.cars.push(car);
+    m.missionCar = car;
+    m.marker = { x: car.x, y: car.y };
   }
   say(game, def.intro);
 }
@@ -147,7 +213,11 @@ function finishMission(game, events) {
   m.index += 1;
   if (m.index >= MISSIONS.length) {
     m.finishedAll = true;
-    say(game, ['Mara Solis: "You did it, Rico. The whole city saw it."', '"Solmar is yours now. Spend it well."']);
+    if (def.id === 'finale') {
+      say(game, ['Mara Solis: "Five stars and you parked it like a valet. Incredible."', '"Solmar is yours now, Rico. Every street of it. Spend it well."']);
+    } else {
+      say(game, ['Mara Solis: "You did it, Rico. The whole city saw it."', '"Solmar is yours now. Spend it well."']);
+    }
     events.push({ type: 'story-done' });
   } else {
     startMission(game, m.index);
@@ -168,6 +238,9 @@ function failMission(game, reason) {
   if (m.contact) {
     game.peds = game.peds.filter((p) => p !== m.contact);
   }
+  if (m.hostiles.length) {
+    game.peds = game.peds.filter((p) => !p.hostile);
+  }
   setWanted(game.police, 0);
   startMission(game, m.index);
 }
@@ -180,6 +253,10 @@ export function currentObjective(game) {
   let text = `${def.name}: ${def.objectives[m.step]}`;
   if (def.id === 'tail') text += ` — ${Math.floor(m.progress)}%`;
   if (def.id === 'hot' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if (def.id === 'showdown' && m.step === 1) {
+    const down = m.hostiles.filter((h) => h.down > 0).length;
+    text += ` — ${down} of ${m.hostiles.length} down`;
+  }
   return text;
 }
 
@@ -191,18 +268,59 @@ export function missionMarker(game) {
   return null;
 }
 
+/** The showdown rivals: they keep their distance, strafe, and shoot back. */
+function updateHostiles(game, dt, events) {
+  const m = game.missions;
+  const player = game.player;
+  for (const h of m.hostiles) {
+    if (h.down > 0) continue; // down for good: nothing revives a rival in this mission
+    const d = distance(h.x, h.y, player.x, player.y);
+    const toward = Math.atan2(player.y - h.y, player.x - h.x);
+    // Hold a fighting distance: close in when far, back off when crowded, drift sideways.
+    let moveAngle = toward + Math.PI / 2; // strafe by default
+    let speed = 60;
+    if (d > 230) {
+      moveAngle = toward;
+      speed = 150;
+    } else if (d < 120) {
+      moveAngle = toward + Math.PI;
+      speed = 110;
+    }
+    h.angle = toward;
+    h.x += Math.cos(moveAngle) * speed * dt;
+    h.y += Math.sin(moveAngle) * speed * dt;
+    resolveBuildings(game.city.buildings, h, 11);
+    h.walkPhase += dt * 9;
+    h.shootCd -= dt;
+    if (d < 300 && h.shootCd <= 0) {
+      h.shootCd = 1.7 + game.rng() * 0.9;
+      const spread = (game.rng() - 0.5) * 0.21;
+      const a = toward + spread;
+      game.bullets.push({
+        x: h.x + Math.cos(a) * 16,
+        y: h.y + Math.sin(a) * 16,
+        vx: Math.cos(a) * 620,
+        vy: Math.sin(a) * 620,
+        life: 0.85,
+        hostile: true,
+      });
+      if (d < 420) events.push({ type: 'shot', x: h.x, y: h.y });
+    }
+  }
+}
+
 /** One fixed step of the active mission. */
 export function updateMissions(game, dt, events) {
   const m = game.missions;
-  if (!m.active || m.finishedAll) return;
-  const def = MISSIONS[m.index];
-  const player = game.player;
-
+  // Dialogue cycles even between missions: the side activities speak through it too.
   if (game.dialogue && game.time > game.dialogue.until) {
     game.dialogue.index += 1;
     if (game.dialogue.index < game.dialogue.lines.length) game.dialogue.until = game.time + 4.5;
     else game.dialogue = null;
   }
+  if (!m.active || m.finishedAll) return;
+  const def = MISSIONS[m.index];
+  const player = game.player;
 
   if (def.id === 'getaway') {
     if (m.step === 0) {
@@ -282,5 +400,236 @@ export function updateMissions(game, dt, events) {
     } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
       finishMission(game, events);
     }
+  } else if (def.id === 'convoy') {
+    const van = m.missionCar;
+    if (!van) return;
+    m.marker = { x: van.x, y: van.y };
+    if (m.step === 0) {
+      // The van rolls its route for a while, then parks at its drop. Stay with it.
+      if (m.vanState === 'driving') {
+        m.progress += dt;
+        const waypoint = m.progress < 42 ? van.loop[Math.floor(m.progress / 10.5) % van.loop.length] : m.parkPoint;
+        van.target = waypoint;
+        if (m.progress >= 42 && distance(van.x, van.y, m.parkPoint.x, m.parkPoint.y) < 75) {
+          van.traffic = false;
+          van.speedTarget = 0;
+          van.vx = 0;
+          van.vy = 0;
+          m.vanState = 'parked';
+          m.step = 1;
+          m.marker = { x: van.x, y: van.y };
+          say(game, ['Mara Solis: "It parked. Now take it — the crew will not wait around."']);
+        }
+      }
+      if (distance(player.x, player.y, van.x, van.y) > 700) {
+        m.spotted += dt;
+        if (m.spotted > 6) {
+          failMission(game, 'You lost the convoy in traffic.');
+          return;
+        }
+      } else {
+        m.spotted = 0;
+      }
+    } else if (m.step === 1) {
+      if (player.inCar && player.car === van) {
+        m.step = 2;
+        setWanted(game.police, 2);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Two stars and one very full van. Hideout, Rico."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar && player.car === van) {
+      finishMission(game, events);
+    }
+  } else if (def.id === 'showdown') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, MARINA.x, MARINA.y) < 70) {
+        m.step = 1;
+        const offsets = [[-110, 0], [110, 0], [-70, 26], [80, -26]];
+        m.hostiles = offsets.map(([ox, oy]) => {
+          const h = makePed(game.rng, MARINA.x + ox, MARINA.y + oy);
+          h.shirt = '#a03a5e';
+          h.hostile = true;
+          h.shootCd = 0.8 + game.rng() * 0.9;
+          game.peds.push(h);
+          return h;
+        });
+        addWanted(game.police, 1);
+        m.casePoint = { x: MARINA.x, y: MARINA.y };
+        m.marker = null;
+        say(game, ['Rival: "Wrong harbour, Vega. The case stays with us."']);
+      }
+    } else if (m.step === 1) {
+      updateHostiles(game, dt, events);
+      if (m.hostiles.every((h) => h.down > 0)) {
+        m.step = 2;
+        m.marker = { x: m.casePoint.x, y: m.casePoint.y };
+        say(game, ['Mara Solis: "Quiet at last. Grab the case, Rico."']);
+      }
+    } else if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
+      finishMission(game, events);
+    }
+  } else if (def.id === 'finale') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        setWanted(game.police, 5);
+        m.marker = null;
+        say(game, ['Mara Solis: "Five stars. The whole PD. Lose them all."']);
+      }
+    } else if (m.step === 1) {
+      if (game.police.wanted === 0) {
+        m.step = 2;
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Clean. Bring my car home."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
+    }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Side activities: street races and courier runs. They pay cash, keep their own
+// state in game.missions.activity, and can run alongside the story.
+
+function startRace(game, events) {
+  const m = game.missions;
+  const a = m.activity;
+  const checkpoints = [];
+  let from = RACE_START;
+  let total = 0;
+  for (let i = 0; i < 5; i += 1) {
+    const p = farPoint(game, from, 650);
+    total += distance(from.x, from.y, p.x, p.y);
+    checkpoints.push(p);
+    from = p;
+  }
+  a.kind = 'race';
+  a.step = 0;
+  a.timer = 0;
+  a.checkpoints = checkpoints;
+  a.cp = 0;
+  a.marker = checkpoints[0];
+  a.par = total / 230 + 40;
+  events.push({ type: 'announce', text: `Street race! Five checkpoints — par ${Math.floor(a.par)}s.` });
+  say(game, ['Mara Solis: "A race, Rico? Fine — win it. Green flags, five of them."']);
+}
+
+function startDelivery(game) {
+  const m = game.missions;
+  const a = m.activity;
+  a.kind = 'delivery';
+  a.step = 0;
+  a.timer = 0;
+  a.marker = farPoint(game, game.player, 550);
+  say(game, ['Dispatcher: "Package waits at the marker. Grab it, then drive it home fast."']);
+}
+
+function endActivity(game, cooldown) {
+  const a = game.missions.activity;
+  a.kind = null;
+  a.step = 0;
+  a.marker = null;
+  a.checkpoints = [];
+  a.cp = 0;
+  a.cooldown = cooldown;
+}
+
+function failActivity(game, reason) {
+  say(game, [reason, 'The job is off. Come back when you are ready.']);
+  endActivity(game, 10);
+}
+
+/** One fixed step of the side activities. Safe to call when nothing is running. */
+export function updateActivities(game, dt, events) {
+  const m = game.missions;
+  const a = m.activity;
+  const player = game.player;
+  if (a.cooldown > 0) a.cooldown -= dt;
+  if (!a.kind) {
+    if (a.cooldown > 0) return;
+    if (player.inCar && distance(player.x, player.y, RACE_START.x, RACE_START.y) < 55) {
+      startRace(game, events);
+    } else if (!player.inCar && distance(player.x, player.y, COURIER_DEPOT.x, COURIER_DEPOT.y) < 50) {
+      startDelivery(game);
+    }
+    return;
+  }
+  if (a.kind === 'race') {
+    a.timer += dt;
+    if (a.timer > 300) {
+      failActivity(game, 'The crowd got bored and went home.');
+      return;
+    }
+    if (distance(player.x, player.y, a.marker.x, a.marker.y) < 62) {
+      a.cp += 1;
+      if (a.cp >= a.checkpoints.length) {
+        const reward = 700 + Math.max(0, Math.round((a.par - a.timer) * 5));
+        game.cash += reward;
+        m.stats.races += 1;
+        cashBurst(game, player.x, player.y);
+        events.push({ type: 'cash', amount: reward });
+        events.push({ type: 'announce', text: `Race won in ${Math.floor(a.timer)}s — $${reward}.` });
+        endActivity(game, 25);
+        game.save();
+      } else {
+        a.marker = a.checkpoints[a.cp];
+        events.push({ type: 'checkpoint', x: a.marker.x, y: a.marker.y });
+      }
+    }
+    return;
+  }
+  // Courier run: fetch on foot, deliver by car, against the clock.
+  if (a.step === 0) {
+    if (distance(player.x, player.y, a.marker.x, a.marker.y) < 52) {
+      a.step = 1;
+      a.timer = 80;
+      a.marker = farPoint(game, player, 700);
+      events.push({ type: 'pickup', x: player.x, y: player.y });
+      say(game, ['Dispatcher: "Got it. Eighty seconds to the drop — drive!"']);
+    }
+  } else {
+    a.timer -= dt;
+    if (a.timer <= 0) {
+      failActivity(game, 'Too late — the customer cancelled.');
+      return;
+    }
+    if (player.inCar && distance(player.x, player.y, a.marker.x, a.marker.y) < 72) {
+      const reward = 550 + Math.round(a.timer) * 2;
+      game.cash += reward;
+      m.stats.deliveries += 1;
+      cashBurst(game, player.x, player.y);
+      events.push({ type: 'cash', amount: reward });
+      events.push({ type: 'announce', text: `Delivered with ${Math.ceil(a.timer)}s to spare — $${reward}.` });
+      endActivity(game, 25);
+      game.save();
+    }
+  }
+}
+
+/** The objective line for the running activity, or a hint near a start point, or null. */
+export function activityObjective(game) {
+  const a = game.missions.activity;
+  const player = game.player;
+  if (a.kind === 'race') {
+    return `Street Race: checkpoint ${a.cp + 1} of ${a.checkpoints.length} — ${Math.floor(a.timer)}s (par ${Math.floor(a.par)}s)`;
+  }
+  if (a.kind === 'delivery') {
+    return a.step === 0 ? 'Courier Run: pick up the package' : `Courier Run: deliver it — ${Math.max(0, Math.ceil(a.timer))}s left`;
+  }
+  if (a.cooldown <= 0) {
+    if (!player.inCar && distance(player.x, player.y, RACE_START.x, RACE_START.y) < 60) {
+      return 'Street Race: get in a car at the green flag to race';
+    }
+    if (player.inCar && distance(player.x, player.y, COURIER_DEPOT.x, COURIER_DEPOT.y) < 60) {
+      return 'Courier Run: step out at the depot to take the job';
+    }
+  }
+  return null;
+}
+
+/** Where the activity marker points right now, or null. */
+export function activityMarker(game) {
+  const a = game.missions.activity;
+  return a.kind ? a.marker : null;
 }

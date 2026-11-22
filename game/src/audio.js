@@ -101,6 +101,19 @@ export function createAudio() {
       tone(523, 0.14, 'triangle', 0.25);
       setTimeout(() => tone(784, 0.22, 'triangle', 0.25), 130);
     },
+    /** A race checkpoint: one bright rising blip. */
+    checkpoint() {
+      tone(660, 0.09, 'square', 0.16, 990);
+    },
+    /** Grabbing the courier package: a soft two-note pop. */
+    pickup() {
+      tone(392, 0.08, 'sine', 0.3);
+      setTimeout(() => tone(587, 0.12, 'sine', 0.3), 70);
+    },
+    /** A rival's shot nearby: a sharper, thinner crack than the player's own. */
+    rivalShot() {
+      noiseBurst(0.08, 4200, 0.28);
+    },
     /** The engine hum: a sawtooth whose pitch and loudness follow speed. Call every frame. */
     engine(speedRatio) {
       if (!ensure()) return;

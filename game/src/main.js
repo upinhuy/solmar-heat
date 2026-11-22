@@ -2,15 +2,15 @@
 // (several in a slow frame, none in a fast one), and the renderer paints what is there. The
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
-// ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission (with &seed=N)
-// stages that scene instead of running the loop, paints it twice and sets window.__shotReady
-// for a screenshot.
+// ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown (with
+// &seed=N) stages that scene instead of running the loop, paints it twice and sets
+// window.__shotReady for a screenshot.
 import { STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
-import { ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_BUSTED, SCREEN_DONE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED } from './render.js';
-import { HIDEOUT } from './missions.js';
+import { HIDEOUT, createMissions } from './missions.js';
 import { stageShot } from './shots.js';
 
 /** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
@@ -47,6 +47,9 @@ function runGame() {
   let screen = SCREEN_TITLE;
   let accumulator = 0;
   let last = performance.now();
+  // One-shot step actions (enter a car, punch) wait here until a simulation step actually
+  // runs: a press taken on a frame too short for a step must not be dropped.
+  let stepActions = 0;
 
   function announce(message) {
     status.textContent = message;
@@ -57,7 +60,15 @@ function runGame() {
       if (event.type === 'shot') audio.shot();
       else if (event.type === 'punch') audio.punch();
       else if (event.type === 'crash') audio.crash();
-      else if (event.type === 'cash') {
+      else if (event.type === 'checkpoint') {
+        audio.checkpoint();
+        announce('Checkpoint! Keep going.');
+      } else if (event.type === 'pickup') {
+        audio.pickup();
+        announce('Package grabbed. Now deliver it.');
+      } else if (event.type === 'announce') {
+        announce(event.text);
+      } else if (event.type === 'cash') {
         audio.cash();
         announce(`Mission complete. $${event.amount} earned.`);
       } else if (event.type === 'steal') {
@@ -74,11 +85,10 @@ function runGame() {
 
   function startGame(fresh) {
     if (fresh) {
+      // A fresh run replaces the whole mission state: story back to job one, side
+      // activities cleared, race and delivery records back to zero.
       game.cash = 0;
-      game.missions.index = 0;
-      game.missions.finishedAll = false;
-      game.missions.sportUnlocked = false;
-      game.missions.active = false;
+      game.missions = createMissions();
     }
     // After being wasted or busted, Rico wakes up at the hideout.
     if (screen === SCREEN_WASTED || screen === SCREEN_BUSTED) {
@@ -110,17 +120,20 @@ function runGame() {
     if (screen === SCREEN_PLAY) {
       if (actions & ACTION_PAUSE) {
         screen = SCREEN_PAUSED;
+        stepActions = 0; // a press queued before the pause must not fire on resume
         announce('Paused.');
       }
       return;
     }
     if (screen === SCREEN_PAUSED) {
-      if (actions & ACTION_PAUSE) screen = SCREEN_PLAY;
+      if (actions & ACTION_RESTART) startGame(true);
+      else if (actions & ACTION_PAUSE) screen = SCREEN_PLAY;
       else if (actions & ACTION_CONFIRM) screen = SCREEN_PLAY;
       return;
     }
     if (screen === SCREEN_WASTED || screen === SCREEN_BUSTED || screen === SCREEN_DONE) {
-      if (actions & ACTION_CONFIRM) startGame(false);
+      if (actions & ACTION_RESTART) startGame(true);
+      else if (actions & ACTION_CONFIRM) startGame(false);
     }
   }
 
@@ -132,6 +145,7 @@ function runGame() {
     let actions = input.takeActions();
     handleActions(actions);
     if (screen === SCREEN_PLAY) {
+      stepActions |= actions & (ACTION_PUNCH | ACTION_ENTER);
       while (accumulator >= STEP) {
         const mouse = input.mouse();
         const world = renderer.screenToWorld(game, mouse.x, mouse.y);
@@ -141,11 +155,11 @@ function runGame() {
           handbrake: input.handbrake(),
           aim: Math.atan2(world.y - game.player.y, world.x - game.player.x),
           shoot: input.takeClick(),
-          punch: !!(actions & ACTION_PUNCH),
-          enter: !!(actions & ACTION_ENTER),
+          punch: !!(stepActions & ACTION_PUNCH),
+          enter: !!(stepActions & ACTION_ENTER),
         }, STEP);
-        // Enter and punch are one-shot: only the first step of the frame gets them.
-        actions &= ~(ACTION_PUNCH | ACTION_ENTER);
+        // Enter and punch are one-shot: only the first step that runs gets them.
+        stepActions &= ~(ACTION_PUNCH | ACTION_ENTER);
         accumulator -= STEP;
         playEvents(result.events);
         // Engine and siren follow the game every step.

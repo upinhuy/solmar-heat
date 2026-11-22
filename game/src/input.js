@@ -1,12 +1,14 @@
 // Keyboard and pointer input. Held keys give movement and driving; one-shot presses (start,
-// pause, enter a car, mute) are queued as bit flags and taken once by the loop, so a press
-// between two frames is never lost and never counted twice.
+// pause, enter a car, mute, restart) are queued as bit flags and taken once by the loop, so
+// a press between two frames is never lost and never counted twice. The canvas also swallows
+// the right-click menu, so a stray click while aiming never interrupts a fight.
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_ENTER = 4;
 export const ACTION_MUTE = 8;
 export const ACTION_NEW = 16;
 export const ACTION_PUNCH = 32;
+export const ACTION_RESTART = 64;
 
 const CONFIRM = new Set(['Enter', 'Space']);
 const PAUSE = new Set(['KeyP', 'Escape']);
@@ -14,6 +16,7 @@ const ENTER = new Set(['KeyE']);
 const MUTE = new Set(['KeyM']);
 const NEW = new Set(['KeyN']);
 const PUNCH = new Set(['KeyF']);
+const RESTART = new Set(['KeyR']);
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -38,6 +41,8 @@ export function createInput(canvas) {
       if (!event.repeat) actions |= ACTION_NEW;
     } else if (PUNCH.has(event.code)) {
       if (!event.repeat) actions |= ACTION_PUNCH;
+    } else if (RESTART.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_RESTART;
     }
     keys.add(event.code);
   }
@@ -57,6 +62,7 @@ export function createInput(canvas) {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
+  canvas.addEventListener('contextmenu', (event) => event.preventDefault());
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerdown', (event) => {
     onMove(event);
