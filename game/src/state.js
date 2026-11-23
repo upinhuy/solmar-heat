@@ -4,13 +4,17 @@
 // The step also keeps the city breathing: fountain spray arcs over the plazas, dust motes
 // drift through the streets, foam sparkles lift off the beach shoreline where the waves
 // break, a horn blast from the player's car scatters the crowd wide,
-// the weather turns — rain rolls in, slicks the streets and rolls out again — and a hard
-// crash kicks the camera (game.shake, which the renderer reads).
-import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, WORLD } from './config.js';
+// the weather turns — rain rolls in, slicks the streets and rolls out again — a hard
+// crash kicks the camera (game.shake, which the renderer reads), the elevated train
+// circles its loop and pauses at its stations, hard impacts bend the cars (a wrecked
+// engine smokes), and the light street props — crates, bins, dock barrels — split open
+// when a fast car ploughs through them and leave their wreckage on the ground.
+import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, TRAIN, WORLD } from './config.js';
 import { createRandom, distance, pick } from './random.js';
-import { BEACH_EAST, BEACH_WATER_Y, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { BEACH_EAST, BEACH_WATER_Y, TRAIN_LOOP_LENGTH, TRAIN_STATIONS, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import {
   cashBurst,
+  debrisBurst,
   driftSmoke,
   driveCar,
   exhaust,
@@ -94,6 +98,11 @@ export function createGame(seed, saved) {
     peds: [],
     bullets: [],
     particles: [],
+    debris: [], // wreckage decals left on the ground where props broke (capped in stepGame)
+    // The elevated train: `s` is the head car's arc length along the loop, `speed` its
+    // current pace, `dwell` the seconds left at a station, `lastStop` the station it
+    // most recently served (so it never brakes twice for the same stop).
+    train: { s: 300, speed: TRAIN.speed, dwell: 0, lastStop: -1 },
     police: createPolice(),
     missions: createMissions(),
     cash: 0,
@@ -215,6 +224,55 @@ function playerPunch(game, events) {
 }
 
 /**
+ * One fixed step of the elevated railway. The train runs its loop forever: it cruises,
+ * brakes into the next station it has not just served, holds there with the doors open
+ * for TRAIN.dwell seconds, and pulls away again. It never collides with anything — the
+ * viaduct is above the streets — so this is pure motion, and the renderer reads the
+ * consist's positions straight off game.train.s.
+ */
+function updateTrain(game, dt) {
+  const t = game.train;
+  if (t.dwell > 0) {
+    t.dwell -= dt;
+    t.speed = 0;
+    return;
+  }
+  // The next station ahead that this run has not just left.
+  const LEN = TRAIN_LOOP_LENGTH;
+  let next = null;
+  for (const st of TRAIN_STATIONS) {
+    if (st.index === t.lastStop) continue;
+    const d = (((st.s - t.s) % LEN) + LEN) % LEN;
+    if (!next || d < next.d) next = { d, st };
+  }
+  let target = TRAIN.speed;
+  if (next && next.d < TRAIN.brakeZone) {
+    // Ease in: full speed at the edge of the zone, a crawl at the platform.
+    target = Math.max(9, (TRAIN.speed * next.d) / TRAIN.brakeZone);
+  }
+  const rate = target < t.speed ? TRAIN.brake : TRAIN.accel;
+  t.speed += Math.max(-rate * dt, Math.min(rate * dt, target - t.speed));
+  t.s = (t.s + t.speed * dt) % LEN;
+  if (next && next.d <= 2.5 && t.speed <= 12) {
+    // Arrived: settle exactly on the platform mark and open the doors.
+    t.s = next.st.s;
+    t.speed = 0;
+    t.dwell = TRAIN.dwell;
+    t.lastStop = next.st.index;
+  }
+  // Once the train is well clear of the station it last served, that station is a
+  // normal future stop again.
+  if (t.lastStop >= 0) {
+    const served = TRAIN_STATIONS[t.lastStop];
+    const away = (((t.s - served.s) % LEN) + LEN) % LEN;
+    if (away > 260 && away < LEN - 260) t.lastStop = -1;
+  }
+}
+
+/** The light props a fast car can smash through: dock crates, litter bins, barrels. */
+const BREAKABLE = { crate: ['#a8854f', '#77603f'], bin: ['#2c4a34', '#3d6b47'], barrel: ['#8a5a2c', '#5d3c1c', '#b8443a'] };
+
+/**
  * One fixed step. `input` is { move: {x,y}, sprint, handbrake, aim, shoot, punch, enter }.
  * Returns { events, busted, wasted }.
  */
@@ -239,6 +297,7 @@ export function stepGame(game, input, dt) {
   player.pedCooldown = Math.max(0, player.pedCooldown - dt);
   player.hornCd = Math.max(0, player.hornCd - dt);
   player.aim = input.aim;
+  updateTrain(game, dt); // the elevated line keeps its own timetable, whatever Rico does
 
   if (input.enter) {
     const event = enterExitCar(game);
@@ -267,6 +326,12 @@ export function stepGame(game, input, dt) {
       handbrake: input.handbrake,
     };
     const impact = driveCar(car, carInput, dt, game.city.buildings);
+    if (impact > 25) {
+      // Every real hit bends the car a little. driveCar reports the full impact when
+      // the car wedges against a building and 40% of it when it slides off, so a
+      // handful of hard crashes — or a season of small ones — adds up to a wreck.
+      car.damage = Math.min(100, (car.damage || 0) + impact * 0.045);
+    }
     if (impact > 300) {
       hurtPlayer(game, 8);
       sparks(game, car.x, car.y, 10);
@@ -293,6 +358,33 @@ export function stepGame(game, input, dt) {
         if (player.pedCooldown <= 0) {
           addWanted(game.police, 1);
           player.pedCooldown = 4;
+        }
+      }
+    }
+    // Light street props break under a fast car: crates splinter, bins crumple and
+    // dock barrels split, each leaving its wreckage on the ground behind it. Heavy
+    // furniture — benches, dumpsters, planters, billboards — is rooted and stays.
+    const carSpeed = Math.hypot(car.vx, car.vy);
+    if (carSpeed > 140) {
+      for (const prop of game.city.props) {
+        if (prop.broken || !BREAKABLE[prop.kind]) continue;
+        const px = prop.x + prop.w / 2;
+        const py = prop.y + prop.h / 2;
+        if (distance(px, py, car.x, car.y) < (car.radius || 17) + 13) {
+          prop.broken = true;
+          debrisBurst(game, px, py, BREAKABLE[prop.kind], 9);
+          for (let d = 0; d < 4; d += 1) {
+            game.debris.push({
+              x: px + (game.rng() - 0.5) * 26,
+              y: py + (game.rng() - 0.5) * 20,
+              rot: game.rng() * Math.PI,
+              color: BREAKABLE[prop.kind][d % BREAKABLE[prop.kind].length],
+              size: 3 + game.rng() * 4,
+            });
+          }
+          if (game.debris.length > 140) game.debris.splice(0, game.debris.length - 140);
+          car.damage = Math.min(100, (car.damage || 0) + 2); // smashing through things is not free
+          events.push({ type: 'smash', x: px, y: py });
         }
       }
     }
@@ -380,6 +472,7 @@ export function stepGame(game, input, dt) {
       for (const car of game.police.cars) {
         if (distance(b.x, b.y, car.x, car.y) < 24) {
           sparks(game, b.x, b.y, 6);
+          car.damage = Math.min(100, (car.damage || 0) + 5); // shot-up cruisers smoke like any wreck
           if (player.pedCooldown <= 0) {
             addWanted(game.police, 1);
             player.pedCooldown = 4;
@@ -394,6 +487,28 @@ export function stepGame(game, input, dt) {
 
   for (let i = game.particles.length - 1; i >= 0; i -= 1) {
     if (!updateParticle(game.particles[i], dt)) game.particles.splice(i, 1);
+  }
+
+  // A badly bent engine smokes: past half damage a car trails dark puffs from under
+  // its hood, and near totalled it coughs flame-orange flickers between them. The
+  // player's car, the traffic and the law all wear their history the same way.
+  for (const car of [...game.cars, ...game.police.cars]) {
+    const dmg = car.damage || 0;
+    if (dmg < 35) continue;
+    const rate = dmg >= 55 ? 7 : 2.2;
+    if (game.rng() < dt * rate) {
+      const nose = (car.len || 46) / 2 - 5;
+      const flicker = dmg > 85 && game.rng() < 0.3;
+      game.particles.push(makeParticle(
+        car.x + Math.cos(car.angle) * nose + (game.rng() - 0.5) * 6,
+        car.y + Math.sin(car.angle) * nose + (game.rng() - 0.5) * 6,
+        (game.rng() - 0.5) * 14,
+        -16 - game.rng() * 14,
+        0.7 + game.rng() * 0.4,
+        flicker ? '#e07b39' : '#3a3a3a',
+        flicker ? 3 : 4.5 + game.rng() * 2,
+      ));
+    }
   }
 
   // Ambience: fountain spray arcs over the plazas, and dust motes drift near the player.

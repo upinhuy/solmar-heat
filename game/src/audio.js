@@ -18,6 +18,8 @@ export function createAudio() {
   let waveSource = null;
   let waveGain = null;
   let waveLfo = null;
+  let trainSource = null;
+  let trainGain = null;
   let lastThunder = 0;
   let muted = false;
 
@@ -99,6 +101,38 @@ export function createAudio() {
     /** A crash: longer filtered noise. */
     crash() {
       noiseBurst(0.35, 900, 0.6);
+    },
+    /** A street prop splitting under a car: a short woody crack, higher and quicker
+     * than a crash — splinters, not bodywork. */
+    smash() {
+      noiseBurst(0.14, 2400, 0.32);
+      tone(180, 0.07, 'triangle', 0.18, 70);
+    },
+    /** The elevated train passing: a low rumble of filtered noise whose loudness
+     * follows how close the consist is (0 = the far side of the loop, silent). Call
+     * every frame; the rumble swells as the train bears down on the player's street
+     * and falls away behind it, twice a loop. */
+    train(closeness) {
+      if (closeness <= 0) {
+        if (trainGain) trainGain.gain.setTargetAtTime(0, context.currentTime, 0.3);
+        return;
+      }
+      if (!ensure()) return;
+      if (!trainSource) {
+        trainSource = context.createBufferSource();
+        trainSource.buffer = noiseBuffer;
+        trainSource.loop = true;
+        const filter = context.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 240;
+        trainGain = context.createGain();
+        trainGain.gain.value = 0;
+        trainSource.connect(filter);
+        filter.connect(trainGain);
+        trainGain.connect(master);
+        trainSource.start();
+      }
+      trainGain.gain.setTargetAtTime(closeness * 0.055, context.currentTime, 0.25);
     },
     /** Cash earned: two bright chimes. */
     cash() {

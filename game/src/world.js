@@ -6,7 +6,11 @@
 // lifeguard towers under a second pier, and a row of pastel resort blocks with pools
 // behind the coast road. A distant skyline of towers rings
 // the north and east edges, beyond the streets. Every intersection carries a working
-// traffic signal, phased off one shared cycle, and the traffic obeys it. Plus the helpers
+// traffic signal, phased off one shared cycle, and the traffic obeys it. Over the middle
+// avenues runs the elevated loop line: a concrete viaduct on pillars, following the
+// street centrelines so it never crosses a rooftop, with two stations and a three-car
+// train that circles it forever (state.js drives the train; this file owns the track).
+// Plus the helpers
 // the rest of the game uses to ask the city questions (is this a road? does this circle
 // hit a building? where is the nearest street?). Nothing here draws or listens to input.
 import { AWNING_COLORS, BEACH_SIGN_NAMES, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, UMBRELLA_COLORS, WORLD } from './config.js';
@@ -56,6 +60,67 @@ export function signalPhase(signal, time) {
   if (t < 11) return { ns: 'red', ew: 'green' };
   return { ns: 'red', ew: 'yellow' };
 }
+
+// ---------------------------------------------------------------------------
+// The elevated loop line. The track is a rounded rectangle laid exactly over the
+// centrelines of the second and seventh avenues (450 and 1950), so the viaduct runs
+// down the middle of the streets and the trains pass over traffic, never through a
+// building. The path is measured in arc length `s`: straights and quarter-circle
+// corners, clockwise from the middle of the north avenue, heading east.
+
+const RAIL_MIN = 450; // the north and west avenues the loop rides
+const RAIL_MAX = 1950; // the south and east avenues
+const RAIL_R = 110; // corner radius: wide enough to read as a railway curve
+const RAIL_SEGMENTS = [];
+{
+  const lo = RAIL_MIN + RAIL_R; // 560: where the straights begin
+  const hi = RAIL_MAX - RAIL_R; // 1840: where they end
+  const line = hi - lo;
+  const arc = (Math.PI / 2) * RAIL_R;
+  RAIL_SEGMENTS.push(
+    { kind: 'line', x: lo, y: RAIL_MIN, dx: 1, dy: 0, len: line }, // north avenue, eastbound
+    { kind: 'arc', cx: hi, cy: RAIL_MIN + RAIL_R, a0: -Math.PI / 2, len: arc },
+    { kind: 'line', x: RAIL_MAX, y: lo, dx: 0, dy: 1, len: line }, // east avenue, southbound
+    { kind: 'arc', cx: hi, cy: RAIL_MAX - RAIL_R, a0: 0, len: arc },
+    { kind: 'line', x: hi, y: RAIL_MAX, dx: -1, dy: 0, len: line }, // south avenue, westbound
+    { kind: 'arc', cx: lo, cy: RAIL_MAX - RAIL_R, a0: Math.PI / 2, len: arc },
+    { kind: 'line', x: RAIL_MIN, y: RAIL_MAX - RAIL_R, dx: 0, dy: -1, len: line }, // west avenue, northbound
+    { kind: 'arc', cx: lo, cy: RAIL_MIN + RAIL_R, a0: Math.PI, len: arc },
+  );
+}
+export const TRAIN_LOOP_LENGTH = RAIL_SEGMENTS.reduce((sum, seg) => sum + seg.len, 0);
+
+/** The point and heading at arc length `s` along the loop. `s` wraps, so a train can be
+ * positioned by its distance travelled and each car behind it by a smaller `s`. */
+export function trainPointAt(s) {
+  let d = ((s % TRAIN_LOOP_LENGTH) + TRAIN_LOOP_LENGTH) % TRAIN_LOOP_LENGTH;
+  for (const seg of RAIL_SEGMENTS) {
+    if (d > seg.len) {
+      d -= seg.len;
+      continue;
+    }
+    if (seg.kind === 'line') {
+      return { x: seg.x + seg.dx * d, y: seg.y + seg.dy * d, angle: Math.atan2(seg.dy, seg.dx) };
+    }
+    const a = seg.a0 + d / RAIL_R;
+    return { x: seg.cx + Math.cos(a) * RAIL_R, y: seg.cy + Math.sin(a) * RAIL_R, angle: a + Math.PI / 2 };
+  }
+  return { x: RAIL_MIN + RAIL_R, y: RAIL_MIN, angle: 0 };
+}
+
+// The two stations: one on the north avenue, one on the south, both mid-block so a
+// stopping train fills the frame between intersections. `side` is the direction from
+// the track to the platform — toward the city centre in both cases — and `s` is the
+// arc length of the platform's middle, where the head car stops.
+const RAIL_LINE = RAIL_SEGMENTS[0].len;
+const RAIL_ARC = RAIL_SEGMENTS[1].len;
+export const TRAIN_STATIONS = [
+  { index: 0, name: 'ESTACION NORTE', s: 1200 - (RAIL_MIN + RAIL_R), x: 1200, y: RAIL_MIN, side: 1 },
+  { index: 1, name: 'ESTACION SUR', s: RAIL_LINE * 2 + RAIL_ARC * 2 + (RAIL_MAX - RAIL_R - 1200), x: 1200, y: RAIL_MAX, side: -1 },
+];
+// Where a passenger steps off the north platform: on the sidewalk below the station,
+// the spot the story's station job sends Rico to.
+export const STATION_MEET = { x: 1200, y: RAIL_MIN + 62 };
 
 export function isOnRoad(x, y) {
   const half = ROAD_WIDTH / 2;
@@ -158,6 +223,15 @@ export function createCity(random) {
   const lifeguards = []; // beach district: two lifeguard towers watching the water
   const skyline = []; // distant towers along the north and east edges, outside the streets
   const signals = []; // a traffic signal at every intersection, phased off the shared cycle
+  // The viaduct's pillars: a post under the track every 120 units, standing in the
+  // middle of the avenues the loop rides. Pure geometry — no randomness — so the
+  // railway stands in the same place whatever seed grows the rest of the city.
+  const railPillars = [];
+  for (let s = 60; s < TRAIN_LOOP_LENGTH; s += 120) {
+    const p = trainPointAt(s);
+    railPillars.push({ x: p.x, y: p.y, angle: p.angle });
+  }
+  const rail = { pillars: railPillars, stations: TRAIN_STATIONS };
   for (let ix = 0; ix < 8; ix += 1) {
     for (let iy = 0; iy < 8; iy += 1) {
       signals.push({ x: ROADS[ix], y: ROADS[iy], offset: (ix * 5 + iy * 7) % SIGNAL_CYCLE });
@@ -203,6 +277,11 @@ export function createCity(random) {
         }
         for (let t = 0; t < 2; t += 1) {
           props.push({ x: bx + random() * (bw - 24), y: by + bh - 20, w: 22, h: 14, kind: 'crate', angle: random() * 0.6 - 0.3 });
+        }
+        // Rusty dock barrels at the yard's edge: fuel and chemicals for the cranes,
+        // standing where a careless driver will find them.
+        for (let t = 0; t < 3; t += 1) {
+          props.push({ x: bx + 8 + random() * (bw - 30), y: by + 8 + random() * 26, w: 13, h: 13, kind: 'barrel', angle: 0 });
         }
         continue;
       }
@@ -332,6 +411,9 @@ export function createCity(random) {
   for (let i = 0; i < 3; i += 1) {
     props.push({ x: 420 + i * 700 + range(random, -30, 30), y: 2290, w: 10, h: 10, kind: 'bin', angle: 0 });
   }
+  // A pair of fuel barrels by the marina crates, where the harbour trucks turn.
+  props.push({ x: 1812, y: 2296, w: 13, h: 13, kind: 'barrel', angle: 0 });
+  props.push({ x: 1830, y: 2302, w: 13, h: 13, kind: 'barrel', angle: 0 });
   // The beach itself, west of BEACH_EAST: two loose rows of umbrellas down the sand with
   // loungers and towels under them, three kiosks along the top edge where the promenade
   // would be, a volleyball net staked out mid-beach, and two lifeguard towers watching
@@ -380,7 +462,7 @@ export function createCity(random) {
     skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
     sy += w + 4 + random() * 22;
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards };
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

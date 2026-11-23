@@ -1,15 +1,18 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Sixteen missions in order, each a small state machine with an objective, a map marker,
+// Eighteen missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
-// next. The last two jobs before the finale work the new beach resort district: a meet on
+// next. Two jobs work the beach resort district: a meet on
 // the sand that turns into a firefight among the umbrellas, and a timed run in a marked
-// coupe along the coast road to a drop at the far end of the beach. Between story jobs,
+// coupe along the coast road to a drop at the far end of the beach. The last two jobs
+// before the finale work the elevated railway: a courier's handoff under Estacion Norte
+// that turns into a timed getaway, and an ambush under the viaduct where a rival crew
+// tries to take a case back by force. Between story jobs,
 // two repeatable side activities pay cash — generously, so a
 // free-roaming Rico can earn his keep: street races from the green flag and courier runs
 // from the depot — they run on their own state, alongside whatever the story is doing.
 import { distance } from './random.js';
 import { cashBurst, makeCar, makePed, makeSportCar, muzzleFlash } from './vehicles.js';
-import { BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, PORT_SPOT, SHOWROOM_SPOT, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, PORT_SPOT, SHOWROOM_SPOT, STATION_MEET, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import { addWanted, setWanted } from './police.js';
 
 export const HIDEOUT = { x: 150, y: 2100 };
@@ -128,9 +131,24 @@ export const MISSIONS = [
     timer: 95,
   },
   {
+    id: 'station',
+    name: 'The Station Drop',
+    reward: 4400,
+    intro: ['Mara Solis: "A courier rides the elevated line with a case for us, Rico. He steps off at Estacion Norte."', '"Meet him under the platform, on foot. The silver coupe is yours for the ride home — if the PD lets you keep it."'],
+    objectives: ['Meet the courier under Estacion Norte', 'Get in the silver coupe', 'Reach the hideout before the clock runs out'],
+    timer: 100,
+  },
+  {
+    id: 'ambush',
+    name: 'The Viaduct Ambush',
+    reward: 4600,
+    intro: ['Mara Solis: "One more case changes hands tonight, Rico — under the viaduct, where the west avenue crosses the middle of town."', '"The harbour crew calls it a trade. It is not a trade. Three guns, one case, and the whole elevated line watching."'],
+    objectives: ['Go to the meet under the viaduct', 'Drop all three of them', 'Grab the cash case', 'Bring the case to the hideout'],
+  },
+  {
     id: 'finale',
     name: 'One Last Ride',
-    reward: 4000,
+    reward: 5000,
     intro: ['Mara Solis: "One last ride, Rico. The Vortex GT at the marina showroom."', '"Take it, shake a five-star heat, and park it at the hideout. Then Solmar is truly yours."'],
     objectives: ['Take the Vortex GT from the marina showroom', 'Lose the heat — reach 0 stars', 'Park it at the hideout'],
   },
@@ -190,7 +208,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-15): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-17): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -284,6 +302,20 @@ export function startMission(game, index) {
     game.cars.push(coupe);
     m.missionCar = coupe;
     m.marker = { x: coupe.x, y: coupe.y };
+  } else if (def.id === 'station') {
+    // The courier steps off the train at Estacion Norte and waits under the platform;
+    // the getaway coupe stands kerbside just west of the station, facing east.
+    m.contact = { x: STATION_MEET.x, y: STATION_MEET.y, angle: Math.PI / 2, shirt: '#39c2d7', target: null, down: 0, fade: 0, walkPhase: 0, contact: true };
+    game.peds.push(m.contact);
+    const coupe = makeCar(game.rng, { x: 1010, y: 466, angle: 0, kind: 'mission', shape: 'sport', color: '#c9c9c9', missionCar: true });
+    game.cars.push(coupe);
+    m.missionCar = coupe;
+    m.marker = { x: STATION_MEET.x, y: STATION_MEET.y };
+  } else if (def.id === 'ambush') {
+    // The meet is on the west avenue itself, in the viaduct's shadow where it crosses
+    // the middle of town: open asphalt under the pillars, nowhere to hide.
+    m.casePoint = { x: 450, y: 1372 };
+    m.marker = { x: 450, y: 1372 };
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -355,7 +387,8 @@ export function currentObjective(game) {
   if (def.id === 'dawnrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'rushhour' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'coastrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
-  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk') && m.step === 1) {
+  if (def.id === 'station' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk' || def.id === 'ambush') && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
   }
@@ -747,6 +780,71 @@ export function updateMissions(game, dt, events) {
       if (distance(player.x, player.y, m.door.x, m.door.y) < 75 && player.inCar && player.car === m.missionCar) {
         finishMission(game, events);
       }
+    }
+  } else if (def.id === 'station') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.contact.x, m.contact.y) < 46 && !player.inCar) {
+        // The handoff: the courier melts back into the station crowd with the case
+        // in Rico's hands, and the clock starts on the ride home.
+        game.peds = game.peds.filter((p) => p !== m.contact);
+        m.contact = null;
+        m.step = 1;
+        m.marker = { x: m.missionCar.x, y: m.missionCar.y };
+        say(game, ['Courier: "Off the Norte train, friend. The case is yours — the coupe, quickly."']);
+      }
+    } else if (m.step === 1) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 2;
+        m.timer = def.timer || 100;
+        setWanted(game.police, 2);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Two stars saw the handoff. One hundred seconds — bring the case home, Rico."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'Too slow — the buyer at the hideout stopped waiting.');
+        return;
+      }
+      if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar && player.car === m.missionCar) {
+        finishMission(game, events);
+      }
+    }
+  } else if (def.id === 'ambush') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 70) {
+        m.step = 1;
+        // The harbour crew spreads across the avenue under the pillars: dark red
+        // shirts, long guns, and the case on the asphalt between the pillars.
+        const offsets = [[-84, -30], [76, 24], [-6, -88]];
+        m.hostiles = offsets.map(([ox, oy]) => {
+          const h = makePed(game.rng, m.casePoint.x + ox, m.casePoint.y + oy);
+          h.shirt = '#5b2333';
+          h.hostile = true;
+          h.shootCd = 0.9 + game.rng() * 0.9;
+          game.peds.push(h);
+          return h;
+        });
+        addWanted(game.police, 1);
+        m.marker = null;
+        say(game, ['Harbour boss: "Mara sends one man to a trade? The case goes back with us, Vega."']);
+      }
+    } else if (m.step === 1) {
+      updateHostiles(game, dt, events);
+      if (m.hostiles.every((h) => h.down > 0)) {
+        m.step = 2;
+        m.marker = { x: m.casePoint.x, y: m.casePoint.y };
+        say(game, ['Mara Solis: "Quiet under the viaduct. Grab the case, Rico."']);
+      }
+    } else if (m.step === 2) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
+        m.step = 3;
+        setWanted(game.police, 3);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Case is yours. Three stars under the railway — bring it home."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
     }
   } else if (def.id === 'finale') {
     if (m.step === 0) {

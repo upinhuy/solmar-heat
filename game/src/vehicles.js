@@ -4,7 +4,9 @@
 // bullets and particles. Cars come in several body shapes — sedan, hatchback, pickup, van,
 // the low sport shape, a long limousine and a narrow motorcycle with a rider — each with
 // its own size, and the odd yellow taxi among the sedans. Brake lights flare when a car
-// slows hard, and police light bars each flash on their own phase. Physics is simple
+// slows hard, and police light bars each flash on their own phase. Cars also carry their
+// history with them: every hard impact adds to a car's damage, and a badly damaged car
+// trails engine smoke and wears its dents where the renderer can draw them. Physics is simple
 // arcade: accelerate, steer by speed, grip damps sideways slide, buildings stop you with
 // a thud.
 import { CAR, PED_SPEED, PLAYER, ROAD_WIDTH, TRAFFIC_SPEED, WORLD } from './config.js';
@@ -75,6 +77,7 @@ export function makeCar(random, opts) {
     vx: 0,
     vy: 0,
     wrecked: false,
+    damage: 0, // 0..100 of accumulated hurt: dents, cracked glass, engine smoke past halfway
     siren: 0,
   };
 }
@@ -369,6 +372,7 @@ export function updateParticle(p, dt) {
   p.vx *= 1 - 2 * dt;
   p.vy *= 1 - 2 * dt;
   if (p.grav) p.vy += p.grav * dt; // fountain spray arcs back down; smoke and dust do not
+  if (p.rot !== undefined) p.rot += (p.spin || 0) * dt; // debris chunks tumble as they fly
   p.life -= dt;
   return p.life > 0;
 }
@@ -425,4 +429,19 @@ export function driftSmoke(game, car) {
   const px = car.x - Math.cos(car.angle) * 14 + Math.sin(car.angle) * 9 * side;
   const py = car.y - Math.sin(car.angle) * 14 - Math.cos(car.angle) * 9 * side;
   game.particles.push(makeParticle(px, py, range(game.rng, -14, 14), range(game.rng, -14, 14), 0.9, '#8f8a80', 6));
+}
+
+/** The burst when a street prop breaks under a car: a fan of tumbling chunks in the
+ * prop's own colours. The renderer draws kind 'chunk' as a small spinning square, so
+ * the pieces read as splinters and shards rather than smoke. */
+export function debrisBurst(game, x, y, colors, n) {
+  for (let i = 0; i < n; i += 1) {
+    const a = game.rng() * Math.PI * 2;
+    const s = 50 + game.rng() * 190;
+    const chunk = makeParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, 0.5 + game.rng() * 0.5, pick(game.rng, colors), 2.4 + game.rng() * 2.4);
+    chunk.kind = 'chunk';
+    chunk.spin = (game.rng() - 0.5) * 14;
+    chunk.rot = game.rng() * Math.PI;
+    game.particles.push(chunk);
+  }
 }

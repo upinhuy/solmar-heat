@@ -1,4 +1,4 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train.
 // Each one plays the real rules forward from a fresh seeded game for a fixed number of
 // steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
 // a short game really looks like and the same seed always gives the same frame. Each scene
@@ -8,7 +8,10 @@
 // night pursuit with roadblocks on the ground and the police helicopter's searchlight
 // hunting overhead. The beach scene cruises the coast road at golden hour with the new
 // resort district in frame: pastel hotels and their pools behind, the sand and the sea
-// ahead, umbrellas and beachgoers scattered down the shore.
+// ahead, umbrellas and beachgoers scattered down the shore. The train scene rides the
+// north avenue at dusk directly under the elevated line, the three-car train a little
+// ahead on the same avenue with its windows lit, in a car already bent and smoking from
+// the day's work — the railway and the damage system in one frame.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -113,7 +116,7 @@ function walkToward(game, target, seconds) {
 
 /**
  * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain,
- * port, heli or beach; any other name is start) and return the screen to draw over it.
+ * port, heli, beach or train; any other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, game) {
   if (name === 'skyline') {
@@ -368,6 +371,40 @@ export function stageShot(name, game) {
       }, STEP);
       if (game.player.health <= 0) break;
     }
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'train') {
+    game.clock = 18 * 60 + 12; // dusk: the lamps are lit, the sky still warm, the train's windows glowing
+    startRun(game);
+    noActivities(game);
+    // Stage the railway: the head car west of Estacion Norte at full cruise. In the
+    // seconds the photograph takes it brakes into the station and stops at the
+    // platform — a train arriving, doors about to open, over the avenue traffic.
+    game.train.s = 430;
+    game.train.speed = 128;
+    // Rico rides the parallel avenue one block south, eastbound, in a car that has
+    // already had a hard day: bent past halfway, its engine smoking over the bonnet.
+    // The railway runs on the road's own centreline, so a car on that street would
+    // pass hidden under the beam — from the next street over, the photograph gets
+    // both layers of the city at once: the train arriving above, Rico racing below.
+    game.player.x = 500;
+    game.player.y = 750;
+    putPlayerInCar(game);
+    const car = game.player.car;
+    car.x = 500;
+    car.y = 750;
+    car.angle = 0;
+    car.speed = 0;
+    car.damage = 68;
+    game.player.x = car.x;
+    game.player.y = car.y;
+    game.player.health = 400; // a staged scene: the avenue run lasts the photograph
+    const route = [
+      { x: 1700, y: 750 },
+      { x: 900, y: 750 },
+    ];
+    driveRoute(game, routeTarget(game, route), 1.9);
+    game.dialogue = null;
     return { screen: SCREEN_PLAY };
   }
   if (name === 'beach') {

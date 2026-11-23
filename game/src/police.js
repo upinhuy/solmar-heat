@@ -8,7 +8,8 @@
 // over the chase: no gun, no arrest, just a searchlight that refuses to lose you until
 // the heat drops. Three stars is where the
 // pursuit bares its teeth: an extra car joins and fresh units roll in faster. Crimes raise
-// the stars; hiding lowers them.
+// the stars; hiding lowers them. The pursuit is hard on the cruisers, too: a unit that
+// piles into a building comes away bent, and a bent cruiser smokes like any other wreck.
 import { COP, WANTED_MAX, WORLD } from './config.js';
 import { angleDelta, chance, clamp, distance } from './random.js';
 import { driveCar, makeCar } from './vehicles.js';
@@ -264,6 +265,10 @@ export function updatePolice(game, dt, events) {
       handbrake: false,
     };
     const impact = driveCar(car, input, dt, game.city.buildings);
+    if (impact > 90) {
+      // A cruiser that hits a building wears it: dents now, engine smoke later.
+      car.damage = Math.min(100, (car.damage || 0) + impact * 0.05);
+    }
     if (impact > 220) {
       events.push({ type: 'crash', x: car.x, y: car.y });
     }

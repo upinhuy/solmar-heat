@@ -4,6 +4,8 @@
 // requests without a body, and otherwise does nothing clever: this is a development
 // convenience, not a web server for the internet. `--port N` and `--host H` pick where it
 // listens (127.0.0.1 by default, so it stays on your own machine unless you ask otherwise).
+// One exception to "nothing clever": GET /__version answers a small JSON health check
+// naming the game, so a script can tell this server from any other on the machine.
 // Every file gets a weak ETag from its size and mtime, so a browser reload during
 // development can revalidate cheaply: an If-None-Match that matches gets a 304. The
 // cache-control is no-cache (revalidate every time), not no-store — no-store would forbid
@@ -67,6 +69,14 @@ createServer((request, response) => {
     return;
   }
   if (pathname.endsWith('/')) pathname += 'index.html';
+  if (pathname === '/__version') {
+    // A one-line health check for scripts and curious players: which game this server
+    // serves, without downloading any of it.
+    const body = JSON.stringify({ game: 'Solmar Heat', files: 'game/', ok: true });
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
+    response.end(request.method === 'HEAD' ? undefined : body);
+    return;
+  }
   const file = resolve(join(root, normalize(pathname)));
   if (file !== root && !file.startsWith(root + sep)) {
     response.writeHead(403).end('forbidden');

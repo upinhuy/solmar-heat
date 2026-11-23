@@ -95,6 +95,11 @@ export function createInput(canvas) {
     mouseDown = false;
     clicked = false;
   });
+  canvas.addEventListener('pointerleave', () => {
+    // Sliding off the canvas mid-press is the same trap as a cancelled pointer: the
+    // button is no longer over the game, so it no longer counts as held.
+    mouseDown = false;
+  });
 
   return {
     /** WASD/arrows as {x, y} in -1..1. */

@@ -3,17 +3,19 @@
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown|skyline|
-// rain|port|heli|beach (with &seed=N) stages that scene instead of running the loop, paints it
+// rain|port|heli|beach|train (with &seed=N) stages that scene instead of running the loop, paints it
 // twice and sets window.__shotReady for a screenshot. The heli scene is the five-star
 // night chase: roadblocks on the ground, the police helicopter's searchlight overhead.
 // The beach scene is the golden-hour cruise along the coast road, the resort district
-// on one side and the sand and sea on the other.
+// on one side and the sand and sea on the other. The train scene rides the north avenue
+// at dusk under the elevated line, the three-car train ahead with its windows lit.
 import { STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
 import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_BUSTED, SCREEN_DONE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED } from './render.js';
 import { HIDEOUT, createMissions } from './missions.js';
+import { trainPointAt } from './world.js';
 import { stageShot } from './shots.js';
 
 /** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
@@ -65,6 +67,7 @@ function runGame() {
       else if (event.type === 'horn') audio.horn();
       else if (event.type === 'punch') audio.punch();
       else if (event.type === 'crash') audio.crash();
+      else if (event.type === 'smash') audio.smash();
       else if (event.type === 'checkpoint') {
         audio.checkpoint();
         announce('Checkpoint! Keep going.');
@@ -180,6 +183,13 @@ function runGame() {
         audio.siren(game.police.sirenOn);
         audio.rain(game.weather.rain);
         audio.heli(!!game.police.heli); // the rotor wash follows the five-star bird
+        // The elevated train follows the player too: its rumble swells as the consist
+        // bears down on his street and falls away as it rounds the loop.
+        if (game.train) {
+          const head = trainPointAt(game.train.s);
+          const dTrain = Math.hypot(head.x - game.player.x, head.y - game.player.y);
+          audio.train(Math.max(0, Math.min(1, 1 - dTrain / 620)));
+        }
         // The sea follows the player too: silent inland, a slow wash near the shore —
         // closest along the beach, where the sand runs down to the water.
         audio.waves(Math.max(0, Math.min(1, (game.player.y - 1750) / 560)));
@@ -188,6 +198,7 @@ function runGame() {
           audio.engine(0); // the run is over: the engine and siren stop with it
           audio.siren(false);
           audio.heli(false);
+          audio.train(0);
           announce('Busted by the Solmar PD.');
           break;
         }
@@ -196,6 +207,7 @@ function runGame() {
           audio.engine(0);
           audio.siren(false);
           audio.heli(false);
+          audio.train(0);
           announce('Wasted.');
           break;
         }

@@ -9,10 +9,15 @@
 // skyline ringing the north and east edges, then buildings drawn as low extruded blocks —
 // a parapet roof with clutter on top, a windowed south face below it, neon signboards and
 // striped awnings on the commercial blocks, billboards glowing over the corners and litter
-// bins at the kerbs. Cars are drawn per body shape — sedan,
+// bins at the kerbs. Over the middle avenues rides the elevated railway: a concrete
+// viaduct on pillars with pale rails, two canopied stations, and a three-car train in a
+// teal-and-cream livery circling above the traffic, its shadow sliding along the street
+// below — drawn over the ground traffic, because everything on the street passes under
+// it. Cars are drawn per body shape — sedan,
 // hatchback, pickup, van, sport, limousine and motorcycle — with shading, glass
 // reflections, wheels, mirrors and lights; taxis wear a roof sign, police a flashing
-// light bar. Traffic signals stand at every intersection, their lamps cycling with the
+// light bar, and a bent car wears its damage: scuffed nose corners, a cracked
+// windscreen, a crumpled nose on a near-wreck. Traffic signals stand at every intersection, their lamps cycling with the
 // city's clock, and at five stars a police helicopter hangs over the chase — a ground
 // shadow thrown away from the machine, a searchlight pool under it, a blurred rotor
 // disc spinning above a dark PD body. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
@@ -20,9 +25,9 @@
 // sidewalks and reflects in wet streaks, windows light up floor by floor and every car
 // throws a headlight cone. When it rains the streets shine and the neon doubles. Canvas
 // shapes and text, no assets.
-import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, WANTED_MAX, WORLD } from './config.js';
+import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
-import { BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, WATER_Y, signalPhase } from './world.js';
+import { BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, TRAIN_LOOP_LENGTH, WATER_Y, signalPhase, trainPointAt } from './world.js';
 import { hash01, lerp } from './random.js';
 
 export const SCREEN_TITLE = 'title';
@@ -807,7 +812,38 @@ export function createRenderer(canvas) {
       context.save();
       context.translate(cam.x + p.x + p.w / 2, cam.y + p.y + p.h / 2);
       context.rotate(p.angle || 0);
-      if (p.kind === 'bench') {
+      if (p.broken) {
+        // What a fast car leaves behind: a crate is two crossed splintered planks, a
+        // bin a squashed drum with its lid flung beside it, a barrel a split half-drum
+        // leaking a dark stain onto the ground.
+        if (p.kind === 'bin') {
+          context.fillStyle = '#223d29';
+          context.beginPath();
+          context.ellipse(0, 1, 6.5, 4, 0, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = '#3d6b47';
+          context.beginPath();
+          context.ellipse(7, -3, 3.4, 2.4, 0.7, 0, Math.PI * 2);
+          context.fill();
+        } else if (p.kind === 'barrel') {
+          context.fillStyle = 'rgba(20,16,10,0.4)';
+          context.beginPath();
+          context.ellipse(3, 3, 10, 6, 0.4, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = COLORS.barrelDark;
+          context.fillRect(-6, -3, 12, 6);
+          context.fillStyle = COLORS.barrel;
+          context.fillRect(-6, -3, 12, 2.4);
+        } else {
+          context.fillStyle = '#77603f';
+          context.fillRect(-p.w / 2, -2, p.w, 4);
+          context.fillStyle = '#5d4a35';
+          context.save();
+          context.rotate(0.5);
+          context.fillRect(-p.w / 2 + 2, -1.8, p.w - 4, 3.6);
+          context.restore();
+        }
+      } else if (p.kind === 'bench') {
         context.fillStyle = '#5d4a35';
         context.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
         context.fillStyle = '#77603f';
@@ -897,6 +933,29 @@ export function createRenderer(canvas) {
         context.textBaseline = 'middle';
         context.fillText(p.text, 0, 0.5);
         context.restore();
+      } else if (p.kind === 'barrel') {
+        // A dock barrel: a rust-brown drum with two darker bands and a pale glint on
+        // its lid — fuel for the cranes, trouble for a careless driver.
+        context.fillStyle = 'rgba(0,0,0,0.22)';
+        context.beginPath();
+        context.ellipse(1.5, 2, 7.5, 6.5, 0, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = COLORS.barrel;
+        context.beginPath();
+        context.arc(0, 0, 6.5, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = COLORS.barrelDark;
+        context.lineWidth = 1.6;
+        context.beginPath();
+        context.arc(0, 0, 4.4, 0, Math.PI * 2);
+        context.stroke();
+        context.beginPath();
+        context.arc(0, 0, 2, 0, Math.PI * 2);
+        context.stroke();
+        context.fillStyle = 'rgba(255,255,255,0.20)';
+        context.beginPath();
+        context.arc(-2, -2.4, 1.6, 0, Math.PI * 2);
+        context.fill();
       } else {
         context.fillStyle = '#a8854f';
         context.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
@@ -906,6 +965,19 @@ export function createRenderer(canvas) {
       }
       context.restore();
     }
+    // Wreckage lying where props broke: splinters and shards flat on the ground,
+    // left behind by whatever ploughed through them.
+    for (const d of game.debris || []) {
+      if (d.x < vis.x0 || d.x > vis.x1 || d.y < vis.y0 || d.y > vis.y1) continue;
+      context.save();
+      context.translate(cam.x + d.x, cam.y + d.y);
+      context.rotate(d.rot);
+      context.fillStyle = d.color;
+      context.globalAlpha = 0.85;
+      context.fillRect(-d.size, -d.size * 0.32, d.size * 2, d.size * 0.64);
+      context.restore();
+    }
+    context.globalAlpha = 1;
     // Trees and lamps. Palms sway gently over a bare trunk; round trees are layered canopies.
     for (const t of city.trees) {
       context.fillStyle = 'rgba(0,0,0,0.20)';
@@ -1188,6 +1260,40 @@ export function createRenderer(canvas) {
       context.fillRect(-4, wid / 2 - 5, 8, 5);
       context.restore();
     }
+    // The car's history, worn on its body: scuffed nose corners once it has taken a
+    // few hits, a cracked windscreen past halfway, a crumpled black nose when it is
+    // nearly a wreck. Motorcycles are too small to dent — their riders just fall off.
+    const dmg = car.damage || 0;
+    if (dmg > 20 && car.shape !== 'moto') {
+      context.fillStyle = 'rgba(20,18,16,0.35)';
+      context.beginPath();
+      context.ellipse(len / 2 - 4, -wid / 2 + 3, 6, 3.4, 0.5, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      context.ellipse(len / 2 - 4, wid / 2 - 3, 6, 3.4, -0.5, 0, Math.PI * 2);
+      context.fill();
+      if (dmg > 45) {
+        context.strokeStyle = 'rgba(240,246,250,0.55)';
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(len * 0.1, 0);
+        context.lineTo(len * 0.02, -wid / 4);
+        context.moveTo(len * 0.1, 0);
+        context.lineTo(len * 0.16, wid / 5);
+        context.moveTo(len * 0.1, 0);
+        context.lineTo(len * 0.2, -2);
+        context.stroke();
+      }
+      if (dmg > 70) {
+        context.fillStyle = 'rgba(15,13,12,0.45)';
+        context.beginPath();
+        context.moveTo(len / 2, -wid / 2 + 2);
+        context.lineTo(len / 2 - 9, 0);
+        context.lineTo(len / 2, wid / 2 - 2);
+        context.closePath();
+        context.fill();
+      }
+    }
     if (car.missionCar) {
       context.strokeStyle = COLORS.mission;
       context.lineWidth = 3;
@@ -1406,6 +1512,204 @@ export function createRenderer(canvas) {
     context.restore();
   }
 
+  /** The elevated railway's structure, drawn over the streets and the ground traffic:
+   * a soft shadow thrown south-east, pillars standing in the avenues, the concrete
+   * beam with its darker bed, cross ties, and two pale rails catching the light. The
+   * stations get a platform slab beside the track, a striped canopy on posts, and
+   * their name painted where a passenger would read it. The train itself is drawn
+   * separately, after the night tint, so its lit windows burn through the dark.
+   * The track never moves, so its strokes are built once as Path2D objects in world
+   * coordinates and replayed each frame under a camera translation — the loop is the
+   * longest single drawing the game makes, and rebuilding it per frame would cost
+   * more than the rest of the city combined. */
+  let viaductPaths = null;
+  function buildViaductPaths() {
+    const SAMPLES = 170;
+    const pts = [];
+    for (let i = 0; i <= SAMPLES; i += 1) pts.push(trainPointAt((i / SAMPLES) * TRAIN_LOOP_LENGTH));
+    const trace = new Path2D();
+    for (let i = 0; i < pts.length; i += 1) {
+      if (i === 0) trace.moveTo(pts[i].x, pts[i].y);
+      else trace.lineTo(pts[i].x, pts[i].y);
+    }
+    const ties = new Path2D();
+    for (let s = 0; s < TRAIN_LOOP_LENGTH; s += 24) {
+      const p = trainPointAt(s);
+      const px = -Math.sin(p.angle);
+      const py = Math.cos(p.angle);
+      ties.moveTo(p.x - px * 12.5, p.y - py * 12.5);
+      ties.lineTo(p.x + px * 12.5, p.y + py * 12.5);
+    }
+    const rails = [-8.5, 8.5].map((off) => {
+      const path = new Path2D();
+      for (let i = 0; i < pts.length; i += 1) {
+        const px = -Math.sin(pts[i].angle) * off;
+        const py = Math.cos(pts[i].angle) * off;
+        if (i === 0) path.moveTo(pts[i].x + px, pts[i].y + py);
+        else path.lineTo(pts[i].x + px, pts[i].y + py);
+      }
+      return path;
+    });
+    return { trace, ties, rails };
+  }
+
+  function drawViaduct(game, cam, dark) {
+    const vis = visible(cam);
+    const rail = game.city.rail;
+    if (!rail) return;
+    if (!viaductPaths) viaductPaths = buildViaductPaths();
+    context.save();
+    context.translate(cam.x, cam.y);
+    // The shadow the whole structure throws on the street below.
+    context.save();
+    context.translate(13, 15);
+    context.strokeStyle = 'rgba(0,0,0,0.16)';
+    context.lineWidth = 36;
+    context.stroke(viaductPaths.trace);
+    context.restore();
+    // The beam and its bed.
+    context.strokeStyle = COLORS.viaduct;
+    context.lineWidth = 31;
+    context.stroke(viaductPaths.trace);
+    context.strokeStyle = COLORS.viaductBed;
+    context.lineWidth = 24;
+    context.stroke(viaductPaths.trace);
+    // Ties under the rails, then the rails themselves.
+    context.strokeStyle = COLORS.tie;
+    context.globalAlpha = 0.55;
+    context.lineWidth = 4;
+    context.stroke(viaductPaths.ties);
+    context.globalAlpha = 1;
+    context.strokeStyle = COLORS.railSteel;
+    context.lineWidth = 2.4;
+    for (const path of viaductPaths.rails) context.stroke(path);
+    context.restore();
+    // Pillars: a dark post with a lighter capital disc where it meets the beam.
+    for (const p of rail.pillars) {
+      if (p.x < vis.x0 || p.x > vis.x1 || p.y < vis.y0 || p.y > vis.y1) continue;
+      context.fillStyle = 'rgba(0,0,0,0.20)';
+      context.beginPath();
+      context.ellipse(cam.x + p.x + 4, cam.y + p.y + 5, 10, 7, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = COLORS.viaductDark;
+      context.fillRect(cam.x + p.x - 5, cam.y + p.y - 5, 10, 10);
+      context.fillStyle = COLORS.viaduct;
+      context.beginPath();
+      context.arc(cam.x + p.x, cam.y + p.y, 8.5, 0, Math.PI * 2);
+      context.fill();
+    }
+    // Stations: platform, canopy, name. The platform hugs the track on the city side.
+    for (const st of rail.stations) {
+      if (st.x < vis.x0 - 120 || st.x > vis.x1 + 120 || st.y < vis.y0 - 90 || st.y > vis.y1 + 90) continue;
+      const cx = cam.x + st.x;
+      const cy = cam.y + st.y + st.side * 34;
+      context.fillStyle = 'rgba(0,0,0,0.18)';
+      context.fillRect(cx - 88 + 4, cy - 15 + 5, 176, 30);
+      context.fillStyle = COLORS.platform;
+      context.fillRect(cx - 88, cy - 15, 176, 30);
+      context.fillStyle = 'rgba(255,255,255,0.5)';
+      context.fillRect(cx - 88, cy - (st.side > 0 ? 15 : -13), 176, 2.5);
+      // The canopy: a striped awning on four posts, halfway down the platform.
+      context.fillStyle = COLORS.viaductDark;
+      for (const ox of [-52, 52]) {
+        context.fillRect(cx + ox - 2, cy - 8, 4, 16);
+      }
+      for (let s2 = 0; s2 < 120; s2 += 10) {
+        context.fillStyle = (s2 / 10) % 2 === 0 ? COLORS.trainBody : COLORS.trainCream;
+        context.fillRect(cx - 60 + s2, cy - 10, 10, 20);
+      }
+      context.fillStyle = dark > 0.15 ? '#ffd98a' : '#2b3542';
+      context.font = `700 10px ${FONT}`;
+      context.textAlign = 'center';
+      context.fillText(st.name, cx, cy + 27 * st.side);
+    }
+  }
+
+  /** The elevated train itself: three cars in a teal-and-cream livery with a yellow
+   * stripe, riding the loop above the traffic. Its ground shadow slides along the
+   * street a car-length away — that offset is what sells the height, the same trick
+   * the helicopter uses. Windows are dark glass by day and lit segments after dark;
+   * the head car throws a headlight beam at night and the tail car wears red lamps. */
+  function drawTrain(game, cam, dark) {
+    const t = game.train;
+    if (!t) return;
+    const step = TRAIN.carLen + TRAIN.carGap;
+    for (let i = TRAIN.cars - 1; i >= 0; i -= 1) {
+      const c = trainPointAt(t.s - TRAIN.carLen / 2 - i * step);
+      if (c.x < -cam.x - 120 || c.x > -cam.x + VIEW_W + 120 || c.y < -cam.y - 120 || c.y > -cam.y + VIEW_H + 120) continue;
+      context.save();
+      context.translate(cam.x + c.x, cam.y + c.y);
+      context.rotate(c.angle);
+      // Ground shadow, thrown away from the body.
+      context.fillStyle = 'rgba(0,0,0,0.20)';
+      context.beginPath();
+      context.ellipse(11, 15, TRAIN.carLen / 2 + 5, TRAIN.carWid / 2 + 4, 0, 0, Math.PI * 2);
+      context.fill();
+      // Bogies under the body, near each end.
+      context.fillStyle = '#1c1f24';
+      context.fillRect(-TRAIN.carLen / 2 + 5, -TRAIN.carWid / 2 + 3, 11, TRAIN.carWid - 6);
+      context.fillRect(TRAIN.carLen / 2 - 16, -TRAIN.carWid / 2 + 3, 11, TRAIN.carWid - 6);
+      // The body: teal sides, a cream roof panel, a yellow stripe down each flank.
+      context.fillStyle = COLORS.trainBody;
+      rr(-TRAIN.carLen / 2, -TRAIN.carWid / 2, TRAIN.carLen, TRAIN.carWid, 7);
+      context.fill();
+      context.fillStyle = COLORS.trainStripe;
+      context.fillRect(-TRAIN.carLen / 2 + 3, -TRAIN.carWid / 2 + 1.6, TRAIN.carLen - 6, 2.2);
+      context.fillRect(-TRAIN.carLen / 2 + 3, TRAIN.carWid / 2 - 3.8, TRAIN.carLen - 6, 2.2);
+      context.fillStyle = COLORS.trainCream;
+      rr(-TRAIN.carLen / 2 + 7, -TRAIN.carWid / 2 + 5.5, TRAIN.carLen - 14, TRAIN.carWid - 11, 5);
+      context.fill();
+      // The window band: dark glass segments along the roof panel, lit from inside
+      // once the light goes — passengers, going somewhere, above the traffic.
+      const segs = 5;
+      for (let s2 = 0; s2 < segs; s2 += 1) {
+        const wx = -TRAIN.carLen / 2 + 11 + s2 * ((TRAIN.carLen - 22) / segs);
+        const lit = dark > 0.12 && hash01(Math.round(c.x) + i * 31, s2 * 17) < 0.75;
+        context.fillStyle = lit ? COLORS.windowLit : 'rgba(20,30,44,0.85)';
+        context.fillRect(wx, -TRAIN.carWid / 2 + 8, (TRAIN.carLen - 22) / segs - 3, TRAIN.carWid - 16);
+      }
+      if (i === 0) {
+        // The head car: a pale nose, a destination board, and the headlight.
+        context.fillStyle = COLORS.trainCream;
+        rr(TRAIN.carLen / 2 - 9, -TRAIN.carWid / 2 + 4, 9, TRAIN.carWid - 8, 4);
+        context.fill();
+        context.fillStyle = '#17121a';
+        context.fillRect(TRAIN.carLen / 2 - 7.5, -5, 4.5, 10);
+        context.fillStyle = '#ffb84d';
+        context.fillRect(TRAIN.carLen / 2 - 7, -3.6, 3.5, 2.2);
+        context.fillRect(TRAIN.carLen / 2 - 7, 1.4, 3.5, 2.2);
+        context.save();
+        if (dark > 0.1) {
+          context.shadowColor = '#ffe9a8';
+          context.shadowBlur = 12 * dark;
+        }
+        context.fillStyle = '#fff3c4';
+        context.beginPath();
+        context.arc(TRAIN.carLen / 2 + 1, 0, 2.8, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+        if (dark > 0.15) {
+          // The beam ahead of the train, washing the track in front of it.
+          context.fillStyle = 'rgba(255,240,190,0.10)';
+          context.beginPath();
+          context.moveTo(TRAIN.carLen / 2, -4);
+          context.lineTo(TRAIN.carLen / 2 + 95, -20);
+          context.lineTo(TRAIN.carLen / 2 + 95, 20);
+          context.lineTo(TRAIN.carLen / 2, 4);
+          context.closePath();
+          context.fill();
+        }
+      }
+      if (i === TRAIN.cars - 1) {
+        // The tail car wears two red lamps at the back of the consist.
+        context.fillStyle = '#ff5040';
+        context.fillRect(-TRAIN.carLen / 2 - 1, -TRAIN.carWid / 2 + 4, 2.6, 4);
+        context.fillRect(-TRAIN.carLen / 2 - 1, TRAIN.carWid / 2 - 8, 2.6, 4);
+      }
+      context.restore();
+    }
+  }
+
   function drawWorld(game, cam) {
     drawCity(game, cam);
     const dark = darkness(game.clock);
@@ -1456,6 +1760,14 @@ export function createRenderer(canvas) {
         context.moveTo(cam.x + p.x, cam.y + p.y - p.size);
         context.lineTo(cam.x + p.x, cam.y + p.y + p.size);
         context.stroke();
+      } else if (p.kind === 'chunk') {
+        // Debris from a broken prop: a small square tumbling on its own spin.
+        context.save();
+        context.translate(cam.x + p.x, cam.y + p.y);
+        context.rotate(p.rot || 0);
+        context.fillStyle = p.color;
+        context.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        context.restore();
       } else {
         context.fillStyle = p.color;
         context.beginPath();
@@ -1473,6 +1785,9 @@ export function createRenderer(canvas) {
     if (aMarker) {
       drawMarker(cam.x + aMarker.x, cam.y + aMarker.y, activity.kind === 'race' ? COLORS.race : COLORS.courier, game.time + 1);
     }
+    // The elevated railway's structure rides over the ground world: streets, cars and
+    // people all pass under the viaduct, so it is painted after them.
+    drawViaduct(game, cam, dark);
     // A dawn or dusk wash: warm light spilling down from the top of the view, its
     // strength easing with the hour (lerp keeps the shoulder of the glow soft).
     const glow = duskGlow(game.clock);
@@ -1493,6 +1808,9 @@ export function createRenderer(canvas) {
     // The helicopter flies above the lighting: drawn after the tint, so its searchlight
     // pool burns through the night instead of drowning in it.
     drawHeli(game, cam, dark);
+    // The train rides above the lighting too: its lit windows and headlight beam stay
+    // bright over the darkened streets below.
+    drawTrain(game, cam, dark);
   }
 
   /** After dark: lamp pools, neon spill, light-bar glows and headlight cones, added lightly. */
@@ -1636,6 +1954,23 @@ export function createRenderer(canvas) {
     context.fillRect(x0, y0 + BEACH_SAND_TOP * scale, BEACH_EAST * scale, (WORLD - BEACH_SAND_TOP) * scale);
     for (const r of game.city.resorts || []) {
       context.fillRect(x0 + r.x * scale, y0 + r.y * scale, r.w * scale, r.h * scale);
+    }
+    // The elevated loop: a pale rounded square over the middle avenues, and the train
+    // itself as a bright teal dot forever circling it.
+    context.strokeStyle = 'rgba(140,225,232,0.8)';
+    context.lineWidth = 1.6;
+    rr(x0 + 450 * scale, y0 + 450 * scale, 1500 * scale, 1500 * scale, 7);
+    context.stroke();
+    if (game.train) {
+      const tp = trainPointAt(game.train.s);
+      context.fillStyle = COLORS.trainBody;
+      context.beginPath();
+      context.arc(x0 + tp.x * scale, y0 + tp.y * scale, 3, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = '#ffffff';
+      context.beginPath();
+      context.arc(x0 + tp.x * scale, y0 + tp.y * scale, 1.4, 0, Math.PI * 2);
+      context.fill();
     }
     // Hideout and the side-activity starts.
     context.fillStyle = COLORS.mission;
@@ -1821,7 +2156,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Sixteen story missions, a beach resort district, a five-star helicopter.',
+        'Eighteen story missions, an elevated railway circling downtown, a five-star helicopter.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',
@@ -1844,7 +2179,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_DONE) {
       const stats = game.missions.stats;
       drawPanel('SOLMAR IS YOURS', [
-        'All sixteen jobs done. Rico Vega owns this city now.',
+        'All eighteen jobs done. Rico Vega owns this city now.',
         `Final cash: $${game.cash.toLocaleString('en-US')} · Races won: ${stats.races} · Deliveries: ${stats.deliveries}`,
       ], 'Press Enter to keep roaming free', '#7fd069');
     }

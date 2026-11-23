@@ -5,19 +5,30 @@
 // summary the judge reads, with the vendored make.fun library.
 //
 // Solmar Heat: an original open-world crime game. Explore the city of Solmar on foot and by
-// car, steal cars, run sixteen story missions for Mara Solis — getaway driving, a timed hot
+// car, steal cars, run eighteen story missions for Mara Solis — getaway driving, a timed hot
 // delivery, a tail, a heist, a convoy job, a harbour showdown against rivals who shoot back,
 // a marked-car swap, a timed night run, a truck heist in the industrial port, a limousine
 // dash against the clock, a rush-hour coupe run through the downtown lights, a shootout
-// over a cash case in the container yards, a firefight on the sand of the new beach resort
-// district, a timed coast-road run to a drop at the far end of the beach, and a five-star
+// over a cash case in the container yards, a firefight on the sand of the beach resort
+// district, a timed coast-road run to a drop at the far end of the beach, a courier
+// handoff under the elevated line's north station that turns into a timed getaway, an
+// ambush under the viaduct where a rival crew fights for a case, and a five-star
 // finale — plus repeatable street races
 // and courier runs that pay generously on the side. Earn cash and stay ahead of the Solmar
 // police as the wanted level rises: the chase cars aim where you are heading, three stars
 // brings an extra car and a faster response, at four stars the
 // PD parks roadblocks across the road, and at five stars a police helicopter hangs over
-// the chase with its searchlight on you. The traffic, meanwhile, obeys the city's new
+// the chase with its searchlight on you. The traffic, meanwhile, obeys the city's
 // working traffic signals — and queues at the red ones with its brake lights lit.
+// Over the middle avenues runs the city's elevated loop line: a concrete viaduct on
+// pillars carrying a three-car train in a teal-and-cream livery that circles downtown
+// forever, braking into its two stations — Estacion Norte and Estacion Sur — holding
+// for passengers and pulling away again, its shadow sliding over the traffic below and
+// its windows lit after dark. And the city now keeps the receipts of every drive: cars
+// bend as they take hits — scuffed noses, cracked windscreens, crumpled wrecks that
+// trail engine smoke — and the light street props, dock crates, litter bins and rusty
+// harbour barrels, split open when a fast car ploughs through them and leave their
+// wreckage lying on the ground.
 // The city itself is denser and better lit in this version: buildings drawn as raised
 // blocks with lit windows, neon signs and awnings, glowing billboards and litter bins on
 // the corners, seven car body shapes with glass and

@@ -36,6 +36,22 @@ export const CITY_POPULATION = {
 // off this cycle so the whole grid does not change at once.
 export const SIGNAL_CYCLE = 12;
 
+// The elevated loop line: a three-car train circling downtown on a viaduct built over
+// the middle avenues (world.js owns the track geometry). It cruises at city speed,
+// brakes into its two stations, holds for the passengers, and pulls away again — a
+// working railway, not a backdrop, so its pace matches the traffic below.
+export const TRAIN = {
+  cars: 3, // head car and two trailers, drawn as one consist
+  carLen: 54,
+  carWid: 26,
+  carGap: 7, // the coupling slack between cars, in world units of track
+  speed: 128, // cruise speed along the loop
+  accel: 70, // how briskly it pulls away from a station
+  brake: 120, // how firmly it slows for one
+  dwell: 3.4, // seconds held at a station with the doors open
+  brakeZone: 170, // distance out from a station where the braking starts
+};
+
 export const CAR = {
   radius: 17,
   length: 46,
@@ -121,6 +137,23 @@ export const COLORS = {
   skyline: '#111a28',
   skylineLit: '#ffd98a',
   wetSheen: 'rgba(160,190,230,0.10)',
+  // The elevated railway: a concrete viaduct beam on steel-grey pillars, pale rails on
+  // dark ties, and the train itself in a teal-and-cream livery with a yellow stripe —
+  // bright enough to read across a crowded frame, day or night.
+  viaduct: '#4c463f',
+  viaductBed: '#5d574e',
+  viaductDark: '#35312c',
+  railSteel: '#9aa4ac',
+  tie: '#2e2a26',
+  trainBody: '#0fb5ba',
+  trainCream: '#f2e9d8',
+  trainStripe: '#f2c230',
+  platform: '#7d7468',
+  // Wreckage and wear: the dark smoke of a dying engine, and the rust of the dock
+  // barrels that split open when a car ploughs through them.
+  smokeDark: '#3a3a3a',
+  barrel: '#8a5a2c',
+  barrelDark: '#5d3c1c',
 };
 
 // Neon signboards on the commercial buildings: names and tube colours, assigned per
