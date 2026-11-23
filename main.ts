@@ -9,15 +9,18 @@
 // delivery, a tail, a heist, a convoy job, a harbour showdown against rivals who shoot back,
 // a marked-car swap, a timed night run, a truck heist in the industrial port, a limousine
 // dash against the clock, and a five-star finale — plus repeatable street races
-// and courier runs for cash on the side. Earn cash and stay ahead of the Solmar police as
-// the wanted level rises: the chase cars aim where you are heading, and at four stars the
+// and courier runs that pay generously on the side. Earn cash and stay ahead of the Solmar
+// police as the wanted level rises: the chase cars aim where you are heading, three stars
+// brings an extra car and a faster response, and at four stars the
 // PD parks roadblocks across the road.
 // The city itself is denser and better lit in this version: buildings drawn as raised
-// blocks with lit windows, neon signs and awnings, seven car body shapes with glass and
+// blocks with lit windows, neon signs and awnings, glowing billboards and litter bins on
+// the corners, seven car body shapes with glass and
 // brake lights — sedans, vans, a limousine, motorcycles with riders — yellow taxis, park
 // plazas with fountains, street props, an industrial port district of container yards and
-// gantry cranes, a distant skyline, and a marina district along the south shore with a boardwalk, a pier, bobbing boats and animated
-// water — all under a day/night sky with lamp glow and neon spill after dark, and rain
+// gantry cranes painted in harbour colours, a distant skyline, and a marina district along the south shore with a boardwalk, a pier, bobbing boats and animated
+// water — all under a day/night sky with lamp glow and neon spill after dark, lamplight
+// smearing across wet asphalt, thunder under the heavier storms, and rain
 // that slicks the streets and doubles the neon. Put your
 // 3 or 4 PNG or JPEG screenshots in screenshots/ (the first by name is the cover) and run it.
 //

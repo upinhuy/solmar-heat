@@ -13,9 +13,10 @@ import { gridTarget, hitsBuilding, nearestRoadPoint, parkingSpot, randomRoadPoin
 const CAR_COLORS = [
   '#b8443a', '#3a6db8', '#c9a13b', '#4d8a4d', '#7a4d8a', '#c9c9c9', '#3a3a3a', '#d06a2c',
   '#2c8a8a', '#8a2f4d', '#31572c', '#b8b8d0', '#5b2333', '#0f6f6a', '#e07b39', '#9db2ce',
+  '#704214', '#486581',
 ];
-const SPORT_COLORS = ['#e8b23a', '#d0342c', '#2f6fd0'];
-const PED_SHIRTS = ['#d8d8d8', '#7a9cc9', '#c97a7a', '#8ac97a', '#c9b27a', '#9a7ac9', '#e07b39', '#39c2d7', '#a03a5e'];
+const SPORT_COLORS = ['#e8b23a', '#d0342c', '#2f6fd0', '#e8e8e8'];
+const PED_SHIRTS = ['#d8d8d8', '#7a9cc9', '#c97a7a', '#8ac97a', '#c9b27a', '#9a7ac9', '#e07b39', '#39c2d7', '#a03a5e', '#f2e3c9', '#5b7a99'];
 const PED_HAIR = ['#241a12', '#4a3220', '#8a6420', '#c9c9c9', '#6e2f22', '#101010'];
 const PED_SKIN = ['#e8c39a', '#c98e5f', '#8a5a34', '#f2d3ac', '#6e4525'];
 
@@ -40,13 +41,13 @@ export function makeCar(random, opts) {
   if (!shape) {
     if (kind === 'sport') shape = 'sport';
     else if (kind === 'police' || kind === 'mission') shape = 'sedan';
-    else if (random() < 0.07) shape = 'moto'; // the odd motorcycle weaving through traffic
-    else if (random() < 0.05) shape = 'limo'; // and, rarer still, a limousine
+    else if (random() < 0.08) shape = 'moto'; // the odd motorcycle weaving through traffic
+    else if (random() < 0.06) shape = 'limo'; // and, rarer still, a limousine
     else shape = pick(random, CIVILIAN_SHAPES);
   }
   const body = CAR_SHAPES[shape];
   // A share of the civilian sedans are taxis: yellow, with a roof sign the renderer adds.
-  const taxi = opts.taxi ?? (kind === 'civilian' && shape === 'sedan' && random() < 0.14);
+  const taxi = opts.taxi ?? (kind === 'civilian' && shape === 'sedan' && random() < 0.16);
   return {
     id: nextCarId++,
     kind,
@@ -185,7 +186,7 @@ export function updateTraffic(car, dt, random, buildings, others) {
       }
     }
   }
-  car.brake = speed < 26; // crawling in a queue or braking for a corner: lights flare
+  car.brake = speed < 26 || (Math.abs(turn) > 0.45 && speed < 110); // crawling in a queue, braking for a corner, or hauling the nose around one: lights flare
   const oldX = car.x;
   const oldY = car.y;
   car.x += Math.cos(car.angle) * speed * dt;

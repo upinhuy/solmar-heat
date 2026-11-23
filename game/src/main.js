@@ -58,6 +58,7 @@ function runGame() {
   function playEvents(events) {
     for (const event of events) {
       if (event.type === 'shot') audio.shot();
+      else if (event.type === 'rival-shot') audio.rivalShot();
       else if (event.type === 'horn') audio.horn();
       else if (event.type === 'punch') audio.punch();
       else if (event.type === 'crash') audio.crash();
@@ -177,11 +178,15 @@ function runGame() {
         audio.rain(game.weather.rain);
         if (result.busted) {
           screen = SCREEN_BUSTED;
+          audio.engine(0); // the run is over: the engine and siren stop with it
+          audio.siren(false);
           announce('Busted by the Solmar PD.');
           break;
         }
         if (result.wasted) {
           screen = SCREEN_WASTED;
+          audio.engine(0);
+          audio.siren(false);
           announce('Wasted.');
           break;
         }

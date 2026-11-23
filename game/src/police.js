@@ -4,8 +4,9 @@
 // the player is heading, not where he is, fresh units prefer to appear ahead of a driver,
 // and at four stars the PD parks roadblocks across the road ahead — two cars, and three
 // at the full five stars. At five stars, once you have blown through one roadblock, the
-// PD throws a second one across your road while the heat lasts. Crimes raise the stars;
-// hiding lowers them.
+// PD throws a second one across your road while the heat lasts. Three stars is where the
+// pursuit bares its teeth: an extra car joins and fresh units roll in faster. Crimes raise
+// the stars; hiding lowers them.
 import { COP, WANTED_MAX, WORLD } from './config.js';
 import { angleDelta, clamp, distance } from './random.js';
 import { driveCar, makeCar } from './vehicles.js';
@@ -143,11 +144,12 @@ export function updatePolice(game, dt, events) {
   }
 
   // Spawn pressure scales with stars: more cars, more foot cops, and a roadblock at 4+.
-  const wantCars = Math.min(police.wanted, 4) + (police.wanted >= COP.roadblockMinStars ? 2 : 0);
+  // From three stars the PD commits an extra car and answers calls faster.
+  const wantCars = Math.min(police.wanted, 4) + (police.wanted >= COP.roadblockMinStars ? 2 : police.wanted === 3 ? 1 : 0);
   const wantCops = police.wanted >= 2 ? Math.min(police.wanted - 1, 4) : 0;
   police.spawnTimer -= dt;
   if (police.spawnTimer <= 0) {
-    police.spawnTimer = 1.6;
+    police.spawnTimer = police.wanted >= 3 ? 1.25 : 1.6;
     if (police.wanted >= COP.roadblockMinStars && !police.roadblockSet) {
       setRoadblock(game);
     } else if (police.cars.length < wantCars) {
@@ -179,7 +181,7 @@ export function updatePolice(game, dt, events) {
     }
     car.siren = (car.siren || 0) + dt; // the light bar's clock: it drives the flash phase
     if (car.roadblock) {
-      if (d > 150) continue; // hold the line, lights flashing
+      if (d > 165) continue; // hold the line, lights flashing
       car.roadblock = false; // the player is here: chase
     }
     const target = gridTarget(car, aimPoint(game));

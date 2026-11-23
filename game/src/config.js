@@ -24,9 +24,9 @@ export const PLAYER = {
 // How much of the city is alive when a run starts. More traffic and more pedestrians make
 // the streets feel crowded, which is what the screenshots and the driving both feed on.
 export const CITY_POPULATION = {
-  parkedCars: 15,
-  trafficCars: 20,
-  pedestrians: 42,
+  parkedCars: 16,
+  trafficCars: 22,
+  pedestrians: 46,
 };
 
 export const CAR = {
@@ -48,13 +48,13 @@ export const PED_SPEED = 55;
 
 export const WANTED_MAX = 5;
 export const COP = {
-  carSpeed: 480,
+  carSpeed: 492,
   footSpeed: 200,
   arrestTime: 1.4,
   spawnDistance: 720,
   despawnDistance: 1700,
   roadblockMinStars: 4, // at this heat the PD starts parking cars across the road ahead
-  aimLead: 0.35, // seconds of player travel the chase cars aim ahead by
+  aimLead: 0.42, // seconds of player travel the chase cars aim ahead by
 };
 
 export const COLORS = {
@@ -98,7 +98,7 @@ export const COLORS = {
   yardLine: '#c9c2a4',
   crane: '#39424e',
   craneDark: '#232a33',
-  container: ['#b8443a', '#2c6e9e', '#3f7a4d', '#c97e2c', '#6a6f76', '#7a4d8a'],
+  container: ['#b8443a', '#2c6e9e', '#3f7a4d', '#c97e2c', '#6a6f76', '#7a4d8a', '#a03a5e', '#2c8a8a'],
   // The distant skyline that rings the north and east edges, and the wet sheen the roads
   // take on after dark and in the rain.
   skyline: '#111a28',
@@ -112,6 +112,7 @@ export const SIGN_NAMES = [
   'HOTEL SOLMAR', 'BAR PALMA', 'CAFE LUNA', 'TACOS RIO', 'CLUB VERTIGO', 'PIZZA NONA',
   'GYM ATLAS', 'BARBER 9', 'HOTEL MAR', 'CLUB NEON', 'SUSHI ONDA', 'DISCO FARO',
   'CAFE SOL', 'BAR AZUL', 'TALLER RICO', 'MUELLE 12', 'CARGA SUR', 'ASTILLERO',
+  'CINE FARO', 'RAMEN PUERTO', 'TABERNA SOL', 'JOYERIA LUNA', 'TATTOO MAR', 'FLORERIA',
 ];
 export const NEON_COLORS = ['#ff4d8a', '#39c2d7', '#b46aff', '#ffb84d', '#3fd06a', '#ff6a5e'];
 export const AWNING_COLORS = ['#b8443a', '#2c8a8a', '#c9a13b', '#7a4d8a'];

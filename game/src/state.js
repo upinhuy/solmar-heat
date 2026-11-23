@@ -2,8 +2,8 @@
 // loop in main.js and the shot scenes in shots.js both drive the game through stepGame().
 // stepGame returns the events that happened, so the caller can play sounds and announce them.
 // The step also keeps the city breathing: fountain spray arcs over the plazas, dust motes
-// drift through the streets, a horn blast from the player's car startles the crowd, the
-// weather turns — rain rolls in, slicks the streets and rolls out again — and a hard
+// drift through the streets, a horn blast from the player's car scatters the crowd wide,
+// the weather turns — rain rolls in, slicks the streets and rolls out again — and a hard
 // crash kicks the camera (game.shake, which the renderer reads).
 import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, WORLD } from './config.js';
 import { createRandom, distance, pick } from './random.js';
@@ -243,12 +243,13 @@ export function stepGame(game, input, dt) {
     const event = enterExitCar(game);
     if (event) events.push(event);
   }
-  // The horn: a short blast that startles nearby pedestrians into a half-second scatter.
+  // The horn: a short blast that startles nearby pedestrians into a scatter — a generous
+  // radius and a full half-second of flight, so a honk in traffic reliably clears a path.
   if (input.horn && player.inCar && player.hornCd <= 0) {
     player.hornCd = 0.5;
     events.push({ type: 'horn', x: player.x, y: player.y });
     for (const ped of game.peds) {
-      if (ped.down <= 0 && distance(ped.x, ped.y, player.x, player.y) < 130) ped.flee = Math.max(ped.flee, 0.4);
+      if (ped.down <= 0 && distance(ped.x, ped.y, player.x, player.y) < 150) ped.flee = Math.max(ped.flee, 0.6);
     }
   }
   if (input.punch) playerPunch(game, events);

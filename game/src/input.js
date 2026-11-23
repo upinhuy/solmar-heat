@@ -57,8 +57,12 @@ export function createInput(canvas) {
     keys.delete(event.code);
   }
   function onBlur() {
+    // Losing focus drops everything mid-gesture: held keys, the mouse, and any one-shot
+    // press still queued — a stale Enter must not fire when the player comes back.
     keys.clear();
     mouseDown = false;
+    clicked = false;
+    actions = 0;
   }
   function onMove(event) {
     const rect = canvas.getBoundingClientRect();

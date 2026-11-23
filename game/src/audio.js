@@ -12,6 +12,7 @@ export function createAudio() {
   let sirenLfo = null;
   let rainSource = null;
   let rainGain = null;
+  let lastThunder = 0;
   let muted = false;
 
   function ensure() {
@@ -145,6 +146,13 @@ export function createAudio() {
         rainSource.start();
       }
       rainGain.gain.setTargetAtTime(0.028 + intensity * 0.05, context.currentTime, 0.6);
+      // Now and then a heavy storm answers itself: a low, far-off thunder rumble under
+      // the rain wash — never twice in quick succession, never in a drizzle.
+      const now = performance.now();
+      if (intensity > 0.7 && now - lastThunder > 11000 && Math.random() < 0.01) {
+        lastThunder = now;
+        noiseBurst(1.4, 180, 0.16);
+      }
     },
     /** The engine hum: a sawtooth whose pitch and loudness follow speed. Call every frame. */
     engine(speedRatio) {

@@ -6,7 +6,8 @@
 // port's concrete yards, container stacks and gantry cranes in the south-east, a distant
 // skyline ringing the north and east edges, then buildings drawn as low extruded blocks —
 // a parapet roof with clutter on top, a windowed south face below it, neon signboards and
-// striped awnings on the commercial blocks. Cars are drawn per body shape — sedan,
+// striped awnings on the commercial blocks, billboards glowing over the corners and litter
+// bins at the kerbs. Cars are drawn per body shape — sedan,
 // hatchback, pickup, van, sport, limousine and motorcycle — with shading, glass
 // reflections, wheels, mirrors and lights; taxis wear a roof sign, police a flashing
 // light bar. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
@@ -528,12 +529,14 @@ export function createRenderer(canvas) {
       context.translate(cam.x + crane.x, cam.y + crane.y);
       context.rotate(crane.angle);
       const s = crane.span / 2;
+      const cMain = crane.color || COLORS.crane;
+      const cDark = crane.color ? shade(crane.color, 0.58) : COLORS.craneDark;
       context.fillStyle = 'rgba(0,0,0,0.16)';
       context.fillRect(-s + 9, 0, crane.span, 9);
-      context.fillStyle = COLORS.craneDark;
+      context.fillStyle = cDark;
       context.fillRect(-s - 3, -7, 7, 14);
       context.fillRect(s - 4, -7, 7, 14);
-      context.fillStyle = '#39424e';
+      context.fillStyle = cMain;
       context.fillRect(-s - 8, -4.5, crane.span + 16, 9);
       context.fillStyle = 'rgba(255,255,255,0.14)';
       context.fillRect(-s - 8, -4.5, crane.span + 16, 3);
@@ -608,6 +611,51 @@ export function createRenderer(canvas) {
         context.beginPath();
         context.ellipse(0, 0, p.w / 2 - 2, p.h / 2 - 1, 0, 0, Math.PI * 2);
         context.fill();
+      } else if (p.kind === 'bin') {
+        // A litter bin: a dark green drum with a paler lid and a rim of shadow.
+        context.fillStyle = 'rgba(0,0,0,0.22)';
+        context.beginPath();
+        context.ellipse(1.5, 2, 6, 5, 0, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = '#2c4a34';
+        context.beginPath();
+        context.arc(0, 0, 5, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = '#3d6b47';
+        context.beginPath();
+        context.arc(0, 0, 3.4, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = '#141c16';
+        context.beginPath();
+        context.arc(0, 0, 1.6, 0, Math.PI * 2);
+        context.fill();
+      } else if (p.kind === 'billboard') {
+        // A street-corner billboard: two posts, a dark panel, a neon-lit slogan. After
+        // dark the board glows like the signs it competes with.
+        context.fillStyle = 'rgba(0,0,0,0.22)';
+        context.fillRect(-p.w / 2 + 2, -p.h / 2 + 3, p.w, p.h);
+        context.fillStyle = '#23262b';
+        context.fillRect(-p.w / 2 + 3, 1, 3, 5);
+        context.fillRect(p.w / 2 - 6, 1, 3, 5);
+        context.save();
+        if (dark > 0.08) {
+          context.shadowColor = p.color;
+          context.shadowBlur = 9 * dark + 2;
+        }
+        context.fillStyle = '#17121a';
+        rr(-p.w / 2, -p.h / 2, p.w, p.h, 2);
+        context.fill();
+        context.shadowBlur = 0;
+        context.strokeStyle = p.color;
+        context.lineWidth = 1.3;
+        rr(-p.w / 2, -p.h / 2, p.w, p.h, 2);
+        context.stroke();
+        context.fillStyle = p.color;
+        context.font = `700 7.5px ${FONT}`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(p.text, 0, 0.5);
+        context.restore();
       } else {
         context.fillStyle = '#a8854f';
         context.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
@@ -1124,6 +1172,7 @@ export function createRenderer(canvas) {
   /** After dark: lamp pools, neon spill, light-bar glows and headlight cones, added lightly. */
   function drawNightLights(game, cam, dark) {
     const vis = visible(cam);
+    const raining = game.weather && game.weather.rain > 0;
     context.save();
     context.globalCompositeOperation = 'lighter';
     for (const l of game.city.lamps) {
@@ -1140,6 +1189,14 @@ export function createRenderer(canvas) {
       context.beginPath();
       context.arc(cam.x + l.x, cam.y + l.y, 14, 0, Math.PI * 2);
       context.fill();
+      // In the rain the pool smears: a wet reflection streak trailing off the lamp,
+      // the way lamplight drags across soaked asphalt.
+      if (raining) {
+        context.fillStyle = 'rgba(255,205,105,0.05)';
+        context.beginPath();
+        context.ellipse(cam.x + l.x, cam.y + l.y + 17, 5.5, 16, 0, 0, Math.PI * 2);
+        context.fill();
+      }
     }
     // Neon signs spill their colour onto the sidewalk below the face, and — on wet
     // ground, after dark or in the rain — smear a long reflection streak below that.

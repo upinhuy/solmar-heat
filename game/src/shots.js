@@ -126,6 +126,13 @@ export function stageShot(name, game) {
     car.angle = 0;
     game.player.x = car.x;
     game.player.y = car.y;
+    // Company on the avenue: two cars working the northern street in each direction, so
+    // the cruise never reads as an empty road under the towers.
+    for (const [tx, ty, ta] of [[950, 150, 0], [1750, 150, Math.PI]]) {
+      const extra = makeCar(game.rng, { x: tx, y: ty, angle: ta, traffic: true });
+      extra.target = randomRoadPoint(game.rng);
+      game.cars.push(extra);
+    }
     game.player.health = 400;
     const route = [
       { x: 1300, y: 150 },
@@ -210,14 +217,14 @@ export function stageShot(name, game) {
     game.player.health = 400; // a staged scene: traffic bumps should not end the drive
     // Scene dressing: downtown is the busiest part of Solmar — seed extra traffic and
     // pedestrians into the eastern blocks so the frame feels lived in.
-    for (let i = 0; i < 8; i += 1) {
+    for (let i = 0; i < 10; i += 1) {
       const spot = { x: 820 + game.rng() * 1060, y: 820 + game.rng() * 1060 };
       const road = nearestRoadPoint(spot.x, spot.y);
       const extra = makeCar(game.rng, { x: road.x, y: road.y, angle: 0, traffic: true });
       extra.target = randomRoadPoint(game.rng);
       game.cars.push(extra);
     }
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 12; i += 1) {
       const spot = { x: 820 + game.rng() * 1060, y: 820 + game.rng() * 1060 };
       const road = nearestRoadPoint(spot.x, spot.y);
       game.peds.push(makePed(game.rng, road.x + 42, road.y + 42));

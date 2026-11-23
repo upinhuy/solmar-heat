@@ -32,6 +32,7 @@ const MIME: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.avif': 'image/avif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
@@ -39,9 +40,12 @@ const MIME: Record<string, string> = {
   '.gltf': 'model/gltf+json',
   '.bin': 'application/octet-stream',
   '.wasm': 'application/wasm',
+  '.map': 'application/json; charset=utf-8',
   '.wav': 'audio/wav',
   '.mp3': 'audio/mpeg',
   '.ogg': 'audio/ogg',
+  '.opus': 'audio/opus',
+  '.flac': 'audio/flac',
   '.txt': 'text/plain; charset=utf-8',
 };
 

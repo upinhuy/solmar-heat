@@ -20,6 +20,11 @@ export const PIER = { x: 1915, w: 42, from: 2296, to: 2392 };
 export const SHOWROOM_SPOT = { x: 1650, y: 2296, angle: 0 }; // where the finale's car waits
 export const PORT_SPOT = { x: 1990, y: 1950, angle: Math.PI / 2 }; // the port job's truck, kerbside in the dock district
 
+// Gantry cranes are painted per crane, not all one grey: harbour colours, rust and steel.
+const CRANE_COLORS = ['#39424e', '#8a5a2c', '#54626e', '#74403a'];
+// Short slogans for the billboard props: brief enough to read at a glance from above.
+const BILLBOARD_ADS = ['SOLMAR', 'VORTEX GT', 'TACOS RIO', 'DISCO FARO', 'BAR AZUL', 'CAFE SOL', 'MUELLE 12'];
+
 export function isOnRoad(x, y) {
   const half = ROAD_WIDTH / 2;
   for (const r of ROADS) {
@@ -150,7 +155,7 @@ export function createCity(random) {
           });
         }
         if (random() < 0.85) {
-          cranes.push({ x: bx + bw / 2, y: by + bh / 2, span: Math.min(bw - 26, 196), angle: random() < 0.5 ? 0 : Math.PI / 2 });
+          cranes.push({ x: bx + bw / 2, y: by + bh / 2, span: Math.min(bw - 26, 196), angle: random() < 0.5 ? 0 : Math.PI / 2, color: pick(random, CRANE_COLORS) });
         }
         for (let t = 0; t < 2; t += 1) {
           props.push({ x: bx + random() * (bw - 24), y: by + bh - 20, w: 22, h: 14, kind: 'crate', angle: random() * 0.6 - 0.3 });
@@ -212,12 +217,21 @@ export function createCity(random) {
         const size = kind === 'planter' ? { w: 22, h: 12 } : { w: 9, h: 9 };
         props.push({ x: bx + 4, y: by + bh - size.h - 4, w: size.w, h: size.h, kind, angle: 0 });
       }
+      // A litter bin at the opposite corner of half the blocks: the city's small print.
+      if (random() < 0.5) {
+        props.push({ x: bx + bw - 15, y: by + 5, w: 10, h: 10, kind: 'bin', angle: 0 });
+      }
       for (let t = 0; t < 3; t += 1) {
         trees.push({ x: bx + random() * bw, y: by + random() * bh, r: 8 + random() * 6 });
       }
       // A dumpster in the alley mouth of some blocks.
       if (random() < 0.4) {
         props.push({ x: bx + random() * (bw - 30), y: by + bh - 16, w: 30, h: 15, kind: 'dumpster', angle: 0 });
+      }
+      // A billboard at the street corner of some blocks, its slogan lit like the neon
+      // signs: downtown advertises, and the ads give the screenshots their colour pops.
+      if (random() < 0.22) {
+        props.push({ x: bx + bw - 46, y: by + bh - 14, w: 38, h: 11, kind: 'billboard', angle: random() * 0.24 - 0.12, color: pick(random, NEON_COLORS), text: pick(random, BILLBOARD_ADS) });
       }
     }
   }
@@ -233,6 +247,10 @@ export function createCity(random) {
   }
   for (let i = 0; i < 7; i += 1) {
     props.push({ x: 1830 + random() * 260, y: 2288 + random() * 22, w: 20, h: 20, kind: 'crate', angle: random() * 0.6 - 0.3 });
+  }
+  // Bins along the boardwalk, between the palms: even the promenade has its small print.
+  for (let i = 0; i < 3; i += 1) {
+    props.push({ x: 420 + i * 700 + range(random, -30, 30), y: 2290, w: 10, h: 10, kind: 'bin', angle: 0 });
   }
   const boatColors = ['#d8d8d8', '#b8443a', '#3a6db8', '#e8b23a', '#4d8a4d'];
   for (let i = 0; i < 6; i += 1) {

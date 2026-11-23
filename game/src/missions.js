@@ -1,9 +1,9 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
 // Twelve missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
-// next. Between story jobs, two repeatable side activities pay cash: street races from the
-// green flag and courier runs from the depot — they run on their own state, alongside
-// whatever the story is doing.
+// next. Between story jobs, two repeatable side activities pay cash — generously, so a
+// free-roaming Rico can earn his keep: street races from the green flag and courier runs
+// from the depot — they run on their own state, alongside whatever the story is doing.
 import { distance } from './random.js';
 import { cashBurst, makeCar, makePed, makeSportCar, muzzleFlash } from './vehicles.js';
 import { MARINA, PORT_SPOT, SHOWROOM_SPOT, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
@@ -353,7 +353,7 @@ function updateHostiles(game, dt, events) {
         hostile: true,
       });
       muzzleFlash(game, h.x + Math.cos(a) * 16, h.y + Math.sin(a) * 16, a);
-      if (d < 420) events.push({ type: 'shot', x: h.x, y: h.y });
+      if (d < 420) events.push({ type: 'rival-shot', x: h.x, y: h.y });
     }
   }
 }
@@ -680,7 +680,7 @@ export function updateActivities(game, dt, events) {
     if (distance(player.x, player.y, a.marker.x, a.marker.y) < 62) {
       a.cp += 1;
       if (a.cp >= a.checkpoints.length) {
-        const reward = 700 + Math.max(0, Math.round((a.par - a.timer) * 5));
+        const reward = 800 + Math.max(0, Math.round((a.par - a.timer) * 6));
         game.cash += reward;
         m.stats.races += 1;
         cashBurst(game, player.x, player.y);
@@ -711,7 +711,7 @@ export function updateActivities(game, dt, events) {
       return;
     }
     if (player.inCar && distance(player.x, player.y, a.marker.x, a.marker.y) < 72) {
-      const reward = 550 + Math.round(a.timer) * 2;
+      const reward = 650 + Math.round(a.timer) * 3;
       game.cash += reward;
       m.stats.deliveries += 1;
       cashBurst(game, player.x, player.y);
