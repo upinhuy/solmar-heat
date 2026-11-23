@@ -2,7 +2,9 @@
 // camera follows the player across the 2400x2400 city, and a 1280x720 window of the world is
 // fitted to the canvas, letterboxed. The city reads in layers: grass and sidewalks with
 // pavement joints, streets with wheel tracks, kerb lines, centrelines and zebra crossings,
-// park plazas with fountains, the marina boardwalk and its animated water, the industrial
+// park plazas with fountains, the marina boardwalk and its animated water, the beach
+// resort district west of it — a wide sand beach with umbrellas, loungers, kiosks and
+// lifeguard towers, pastel resort blocks with pools behind the coast road — the industrial
 // port's concrete yards, container stacks and gantry cranes in the south-east, a distant
 // skyline ringing the north and east edges, then buildings drawn as low extruded blocks —
 // a parapet roof with clutter on top, a windowed south face below it, neon signboards and
@@ -20,7 +22,7 @@
 // shapes and text, no assets.
 import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
-import { BOARDWALK_Y, PIER, ROADS, WATER_Y, signalPhase } from './world.js';
+import { BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, WATER_Y, signalPhase } from './world.js';
 import { hash01, lerp } from './random.js';
 
 export const SCREEN_TITLE = 'title';
@@ -249,6 +251,42 @@ export function createRenderer(canvas) {
       }
       context.globalAlpha = 1;
     }
+    // The resort aprons behind the beach: pale packed sand under the hotels, speckled
+    // like the beach it serves, with each resort's pool a turquoise inlay — a white rim,
+    // a deep lane down the middle and a ladder at the shallow end.
+    for (const r of city.resorts || []) {
+      if (r.x > vis.x1 || r.x + r.w < vis.x0 || r.y > vis.y1 || r.y + r.h < vis.y0) continue;
+      context.fillStyle = COLORS.sandPale;
+      context.fillRect(cam.x + r.x, cam.y + r.y, r.w, r.h);
+      context.fillStyle = 'rgba(166,143,94,0.35)';
+      for (let s = 0; s < 14; s += 1) {
+        context.fillRect(cam.x + r.x + hash01(r.x + s * 41, r.y) * (r.w - 8), cam.y + r.y + hash01(r.x, r.y + s * 67) * (r.h - 6), 5, 3);
+      }
+    }
+    for (const pool of city.pools || []) {
+      const px = cam.x + pool.x - pool.w / 2;
+      const py = cam.y + pool.y - pool.h / 2;
+      if (px > vis.x1 || px + pool.w < vis.x0 || py > vis.y1 || py + pool.h < vis.y0) continue;
+      context.fillStyle = 'rgba(0,0,0,0.12)';
+      rr(px + 3, py + 4, pool.w, pool.h, 9);
+      context.fill();
+      context.fillStyle = '#e8e2d4';
+      rr(px, py, pool.w, pool.h, 9);
+      context.fill();
+      context.fillStyle = COLORS.pool;
+      rr(px + 4, py + 4, pool.w - 8, pool.h - 8, 6);
+      context.fill();
+      context.fillStyle = COLORS.poolDeep;
+      context.fillRect(px + pool.w / 2 - 2, py + 6, 4, pool.h - 12);
+      context.strokeStyle = 'rgba(255,255,255,0.4)';
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.moveTo(px + 10, py + 7);
+      context.lineTo(px + 10, py + pool.h - 7);
+      context.moveTo(px + 15, py + 7);
+      context.lineTo(px + 15, py + pool.h - 7);
+      context.stroke();
+    }
     // Roads: asphalt, darker wheel tracks where the tyres run, pale kerb edges.
     context.fillStyle = COLORS.road;
     for (const r of ROADS) {
@@ -328,18 +366,19 @@ export function createRenderer(canvas) {
       drawSignalHead(cam.x + s.x + half + 7, cam.y + s.y + half + 7, phase.ns, dark);
       drawSignalHead(cam.x + s.x - half - 14, cam.y + s.y + half + 7, phase.ew, dark);
     }
-    // The marina shore: boardwalk planks and a railing, a wet-sand band, then open water.
+    // The marina shore, east of the beach: boardwalk planks and a railing, a wet-sand
+    // band, then open water. The boardwalk starts where the beach ends (BEACH_EAST).
     context.fillStyle = COLORS.boardwalk;
-    context.fillRect(cam.x, cam.y + BOARDWALK_Y, WORLD, WATER_Y - BOARDWALK_Y);
+    context.fillRect(cam.x + BEACH_EAST, cam.y + BOARDWALK_Y, WORLD - BEACH_EAST, WATER_Y - BOARDWALK_Y);
     context.fillStyle = COLORS.boardwalkDark;
-    for (let x = 0; x < WORLD; x += 26) context.fillRect(cam.x + x, cam.y + BOARDWALK_Y, 2, WATER_Y - BOARDWALK_Y);
-    for (let y = BOARDWALK_Y + 12; y < WATER_Y; y += 13) context.fillRect(cam.x, cam.y + y, WORLD, 1.5);
+    for (let x = BEACH_EAST; x < WORLD; x += 26) context.fillRect(cam.x + x, cam.y + BOARDWALK_Y, 2, WATER_Y - BOARDWALK_Y);
+    for (let y = BOARDWALK_Y + 12; y < WATER_Y; y += 13) context.fillRect(cam.x + BEACH_EAST, cam.y + y, WORLD - BEACH_EAST, 1.5);
     // The railing along the water: posts and a top rail.
     context.fillStyle = '#4a3826';
-    for (let x = 8; x < WORLD; x += 62) context.fillRect(cam.x + x, cam.y + WATER_Y - 7, 3, 7);
-    context.fillRect(cam.x, cam.y + WATER_Y - 7, WORLD, 2);
+    for (let x = BEACH_EAST + 8; x < WORLD; x += 62) context.fillRect(cam.x + x, cam.y + WATER_Y - 7, 3, 7);
+    context.fillRect(cam.x + BEACH_EAST, cam.y + WATER_Y - 7, WORLD - BEACH_EAST, 2);
     context.fillStyle = COLORS.sandWet;
-    context.fillRect(cam.x, cam.y + WATER_Y, WORLD, 7);
+    context.fillRect(cam.x + BEACH_EAST, cam.y + WATER_Y, WORLD - BEACH_EAST, 7);
     // The water itself: a deep band under a lighter one, foam at the shore, drifting sparkle.
     context.fillStyle = COLORS.waterDeep;
     context.fillRect(cam.x, cam.y + WATER_Y + 44, WORLD, WORLD - WATER_Y - 44);
@@ -370,6 +409,151 @@ export function createRenderer(canvas) {
       }
     }
     context.globalAlpha = 1;
+    // The beach, west of the marina: a wide wedge of sand laid over the shore the
+    // boardwalk used to run — dry pale sand at the top with a speckle of shells, a
+    // darker wet band where the waves reach, and its own foam line breathing at the
+    // beach's lower waterline. The sea the swimmers get is the same sea; the sand
+    // simply shelves into it further out.
+    context.fillStyle = COLORS.sandDry;
+    context.fillRect(cam.x, cam.y + BEACH_SAND_TOP, BEACH_EAST, BEACH_WATER_Y - BEACH_SAND_TOP);
+    if (BEACH_SAND_TOP < vis.y1 && BEACH_WATER_Y > vis.y0) {
+      context.fillStyle = 'rgba(255,246,220,0.5)';
+      for (let sx = 14; sx < BEACH_EAST; sx += 46) {
+        if (sx > vis.x1) break;
+        for (let sy = 0; sy < 3; sy += 1) {
+          context.fillRect(cam.x + sx + hash01(sx, sy * 31) * 22, cam.y + BEACH_SAND_TOP + 6 + sy * 15 + hash01(sx * 3, sy) * 7, 4, 2.5);
+        }
+      }
+    }
+    context.fillStyle = COLORS.sandWet;
+    context.fillRect(cam.x, cam.y + BEACH_WATER_Y - 13, BEACH_EAST, 13);
+    context.strokeStyle = COLORS.foam;
+    context.globalAlpha = 0.6;
+    context.lineWidth = 2;
+    context.beginPath();
+    for (let x = 0; x <= BEACH_EAST; x += 40) {
+      const fy = BEACH_WATER_Y + 3 + Math.sin(game.time * 1.1 + x * 0.02 + 2) * 2.5;
+      if (x === 0) context.moveTo(cam.x + x, cam.y + fy);
+      else context.lineTo(cam.x + x, cam.y + fy);
+    }
+    context.stroke();
+    context.globalAlpha = 1;
+    // The beach pier: a second, smaller jetty reaching over the swimming water.
+    context.fillStyle = COLORS.boardwalkDark;
+    context.fillRect(cam.x + BEACH_PIER.x, cam.y + BEACH_PIER.from, BEACH_PIER.w, BEACH_PIER.to - BEACH_PIER.from);
+    context.fillStyle = COLORS.boardwalk;
+    context.fillRect(cam.x + BEACH_PIER.x + 3, cam.y + BEACH_PIER.from, BEACH_PIER.w - 6, BEACH_PIER.to - BEACH_PIER.from);
+    context.fillStyle = '#241a12';
+    for (let y = BEACH_PIER.from + 10; y < BEACH_PIER.to; y += 36) {
+      context.fillRect(cam.x + BEACH_PIER.x - 3, cam.y + y, 5, 5);
+      context.fillRect(cam.x + BEACH_PIER.x + BEACH_PIER.w - 2, cam.y + y, 5, 5);
+    }
+    // Kiosks along the top of the sand: a striped awning roof over a pale stall, its
+    // name painted on the front — helados, refrescos, cocos.
+    for (const k of city.kiosks || []) {
+      if (k.x > vis.x1 || k.x < vis.x0) continue;
+      const kx = cam.x + k.x - 17;
+      const ky = cam.y + k.y - 9;
+      context.fillStyle = 'rgba(0,0,0,0.18)';
+      context.fillRect(kx + 3, ky + 4, 34, 17);
+      context.fillStyle = '#e8e2d4';
+      context.fillRect(kx, ky + 4, 34, 15);
+      context.fillStyle = 'rgba(0,0,0,0.16)';
+      context.fillRect(kx, ky + 16, 34, 3);
+      for (let s = 0; s < 38; s += 7) {
+        context.fillStyle = (s / 7) % 2 === 0 ? k.color : '#e8e2d4';
+        context.fillRect(kx - 2 + s, ky, Math.min(7, 38 - s), 5);
+      }
+      context.fillStyle = '#4a3a2e';
+      context.font = `700 6.5px ${FONT}`;
+      context.textAlign = 'center';
+      context.fillText(k.label, kx + 17, ky + 13.5);
+    }
+    // Lifeguard towers: a white hut on stilts with a red cross over the door, watching
+    // the swimming water from the middle of the sand.
+    for (const t of city.lifeguards || []) {
+      if (t.x > vis.x1 || t.x < vis.x0) continue;
+      const tx = cam.x + t.x;
+      const ty = cam.y + t.y;
+      context.fillStyle = 'rgba(0,0,0,0.18)';
+      context.fillRect(tx - 9, ty + 3, 22, 15);
+      context.strokeStyle = '#6f573c';
+      context.lineWidth = 2.5;
+      context.beginPath();
+      context.moveTo(tx - 8, ty + 8);
+      context.lineTo(tx - 5, ty - 4);
+      context.moveTo(tx + 8, ty + 8);
+      context.lineTo(tx + 5, ty - 4);
+      context.stroke();
+      context.fillStyle = '#f0ece2';
+      context.fillRect(tx - 10, ty - 13, 20, 13);
+      context.fillStyle = '#b03024';
+      context.fillRect(tx - 10, ty - 15, 20, 3.5);
+      context.fillRect(tx - 1.6, ty - 8.5, 3.2, 6.5);
+      context.fillRect(tx - 3.2, ty - 7, 6.4, 3.2);
+      context.fillStyle = 'rgba(20,30,44,0.85)';
+      context.fillRect(tx + 3, ty - 10, 5, 6);
+    }
+    // Umbrellas and loungers on the sand: a bright canopy on a tilted pole — the
+    // canopy breathes a degree or two in the sea breeze — and under each, a lounger
+    // or a towel laid out for the sun.
+    for (const l of city.loungers || []) {
+      if (l.x < vis.x0 || l.x > vis.x1 || l.y < vis.y0 || l.y > vis.y1) continue;
+      context.save();
+      context.translate(cam.x + l.x, cam.y + l.y);
+      context.rotate(l.angle || 0);
+      context.fillStyle = 'rgba(0,0,0,0.10)';
+      context.fillRect(-12, -4, 26, 10);
+      if (l.towel) {
+        context.fillStyle = l.color;
+        context.globalAlpha = 0.85;
+        context.fillRect(-13, -4.5, 26, 9);
+        context.globalAlpha = 1;
+        context.fillStyle = 'rgba(255,255,255,0.55)';
+        context.fillRect(-13, -1.2, 26, 2.2);
+      } else {
+        context.fillStyle = '#e8e2d4';
+        context.fillRect(-14, -4, 28, 8);
+        context.fillStyle = l.color;
+        context.fillRect(-14, -4, 10, 8);
+        context.fillStyle = 'rgba(0,0,0,0.18)';
+        context.fillRect(2, -4, 1.6, 8);
+      }
+      context.restore();
+    }
+    for (const u of city.umbrellas || []) {
+      if (u.x < vis.x0 || u.x > vis.x1 || u.y < vis.y0 || u.y > vis.y1) continue;
+      const sway = Math.sin(game.time * 1.2 + (u.phase || 0)) * 0.03;
+      context.save();
+      context.translate(cam.x + u.x, cam.y + u.y);
+      context.rotate(sway);
+      context.fillStyle = 'rgba(0,0,0,0.16)';
+      context.beginPath();
+      context.ellipse(4, 5, 16, 7.5, 0, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = '#6f573c';
+      context.lineWidth = 1.8;
+      context.beginPath();
+      context.moveTo(0, 3);
+      context.lineTo(1.5, -3);
+      context.stroke();
+      context.fillStyle = u.color;
+      context.beginPath();
+      context.moveTo(-18, -3);
+      context.quadraticCurveTo(0, -13.5, 18, -3);
+      context.quadraticCurveTo(9, -0.5, 0, -2.6);
+      context.quadraticCurveTo(-9, -0.5, -18, -3);
+      context.closePath();
+      context.fill();
+      context.fillStyle = 'rgba(255,255,255,0.35)';
+      context.beginPath();
+      context.moveTo(-6, -5);
+      context.quadraticCurveTo(0, -10.5, 6, -5);
+      context.quadraticCurveTo(0, -3.4, -6, -5);
+      context.closePath();
+      context.fill();
+      context.restore();
+    }
     // The pier reaching into the water.
     context.fillStyle = COLORS.boardwalkDark;
     context.fillRect(cam.x + PIER.x, cam.y + PIER.from, PIER.w, PIER.to - PIER.from);
@@ -669,6 +853,23 @@ export function createRenderer(canvas) {
         context.beginPath();
         context.arc(0, 0, 1.6, 0, Math.PI * 2);
         context.fill();
+      } else if (p.kind === 'net') {
+        // The beach volleyball net: two posts and a white-banded mesh strung between.
+        context.fillStyle = 'rgba(0,0,0,0.18)';
+        context.fillRect(-p.w / 2 + 2, -p.h / 2 + 2, p.w, p.h);
+        context.fillStyle = '#4a3826';
+        context.fillRect(-p.w / 2 - 1, -p.h / 2 - 2, 3, p.h + 4);
+        context.fillRect(p.w / 2 - 2, -p.h / 2 - 2, 3, p.h + 4);
+        context.fillStyle = 'rgba(240,244,248,0.75)';
+        context.fillRect(-p.w / 2, -p.h / 2, p.w, 1.8);
+        context.strokeStyle = 'rgba(240,244,248,0.4)';
+        context.lineWidth = 1;
+        for (let nx = -p.w / 2 + 6; nx < p.w / 2; nx += 6) {
+          context.beginPath();
+          context.moveTo(nx, -p.h / 2);
+          context.lineTo(nx, p.h / 2);
+          context.stroke();
+        }
       } else if (p.kind === 'billboard') {
         // A street-corner billboard: two posts, a dark panel, a neon-lit slogan. After
         // dark the board glows like the signs it competes with.
@@ -1375,6 +1576,19 @@ export function createRenderer(canvas) {
       context.arc(cam.x + car.x, cam.y + car.y, 26, 0, Math.PI * 2);
       context.fill();
     }
+    // The beach kiosks burn warm after dark: a small amber pool on the sand in front of
+    // each stall, so the resort shore glows the way the marina's lamps do.
+    for (const k of game.city.kiosks || []) {
+      if (k.x < vis.x0 || k.x > vis.x1 || k.y < vis.y0 - 60 || k.y > vis.y1) continue;
+      context.fillStyle = 'rgba(255,190,100,0.05)';
+      context.beginPath();
+      context.ellipse(cam.x + k.x, cam.y + k.y + 12, 30, 15, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = 'rgba(255,205,120,0.08)';
+      context.beginPath();
+      context.arc(cam.x + k.x, cam.y + k.y, 11, 0, Math.PI * 2);
+      context.fill();
+    }
     // The player stays readable in the dark.
     context.fillStyle = 'rgba(255,230,160,0.06)';
     context.beginPath();
@@ -1415,6 +1629,13 @@ export function createRenderer(canvas) {
     context.fillStyle = COLORS.yard;
     for (const yard of game.city.yards || []) {
       context.fillRect(x0 + yard.x * scale, y0 + yard.y * scale, yard.w * scale, yard.h * scale);
+    }
+    // The beach along the south-west shore: a sand strip where the sea meets the city,
+    // and the resort aprons in pale sand behind the coast road.
+    context.fillStyle = COLORS.sandDry;
+    context.fillRect(x0, y0 + BEACH_SAND_TOP * scale, BEACH_EAST * scale, (WORLD - BEACH_SAND_TOP) * scale);
+    for (const r of game.city.resorts || []) {
+      context.fillRect(x0 + r.x * scale, y0 + r.y * scale, r.w * scale, r.h * scale);
     }
     // Hideout and the side-activity starts.
     context.fillStyle = COLORS.mission;
@@ -1600,7 +1821,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Fourteen story missions, live traffic lights, a five-star helicopter.',
+        'Sixteen story missions, a beach resort district, a five-star helicopter.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',
@@ -1623,7 +1844,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_DONE) {
       const stats = game.missions.stats;
       drawPanel('SOLMAR IS YOURS', [
-        'All fourteen jobs done. Rico Vega owns this city now.',
+        'All sixteen jobs done. Rico Vega owns this city now.',
         `Final cash: $${game.cash.toLocaleString('en-US')} · Races won: ${stats.races} · Deliveries: ${stats.deliveries}`,
       ], 'Press Enter to keep roaming free', '#7fd069');
     }

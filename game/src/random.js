@@ -14,6 +14,12 @@ export function range(random, min, max) {
   return min + random() * (max - min);
 }
 
+/** A value jittered by up to `amt` either way: the scatter the beach dressing is laid
+ * out with, so umbrellas and palms land near their marks without lining up. */
+export function vary(random, value, amt) {
+  return value + (random() * 2 - 1) * amt;
+}
+
 /** A whole number from min to max, both ends included. */
 export function intRange(random, min, max) {
   return min + Math.floor(random() * (max - min + 1));

@@ -1,4 +1,4 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach.
 // Each one plays the real rules forward from a fresh seeded game for a fixed number of
 // steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
 // a short game really looks like and the same seed always gives the same frame. Each scene
@@ -6,7 +6,9 @@
 // midday downtown drive under the new traffic lights, a rainy neon night chase, the port
 // heist at golden hour, the harbour showdown at dusk — and, for the heli scene, a five-star
 // night pursuit with roadblocks on the ground and the police helicopter's searchlight
-// hunting overhead.
+// hunting overhead. The beach scene cruises the coast road at golden hour with the new
+// resort district in frame: pastel hotels and their pools behind, the sand and the sea
+// ahead, umbrellas and beachgoers scattered down the shore.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -110,8 +112,8 @@ function walkToward(game, target, seconds) {
 }
 
 /**
- * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain or
- * port; any other name is start) and return the screen to draw over it.
+ * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain,
+ * port, heli or beach; any other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, game) {
   if (name === 'skyline') {
@@ -366,6 +368,48 @@ export function stageShot(name, game) {
       }, STEP);
       if (game.player.health <= 0) break;
     }
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'beach') {
+    game.clock = 17 * 60 + 45; // golden hour: warm light over the sand, lamps not yet lit
+    startRun(game);
+    noActivities(game);
+    // Beachgoers on the sand: a scatter of strollers among the umbrellas, so the shore
+    // reads as a resort at the end of the day, not an empty beach.
+    for (let i = 0; i < 14; i += 1) {
+      const bx = 180 + game.rng() * 1180;
+      const by = 2292 + game.rng() * 34;
+      game.peds.push(makePed(game.rng, bx, by));
+    }
+    // A cruise east along the coast road, the resort blocks on the left and the whole
+    // beach on the right. The photograph is taken mid-leg, still on the coast road:
+    // at full speed the arcade steering needs a whole block to turn, and a turning
+    // frame reads as a car in the sea, not a resort panorama.
+    game.player.x = 330;
+    game.player.y = 2250;
+    putPlayerInCar(game);
+    const car = game.player.car;
+    car.x = 330;
+    car.y = 2250;
+    car.angle = 0;
+    car.speed = 0;
+    game.player.x = car.x;
+    game.player.y = car.y;
+    game.player.health = 400; // a staged scene: promenade bumps must not end the cruise
+    const route = [
+      { x: 1500, y: 2250 },
+      { x: 1650, y: 1950 },
+      { x: 450, y: 1950 },
+      { x: 330, y: 2250 },
+    ];
+    driveRoute(game, routeTarget(game, route), 2.3);
+    // The autopilot's cruise brushes the crowds and the law takes an interest — clear
+    // the accidental heat so the frame stays the golden-hour shore it is about.
+    game.police.wanted = 0;
+    game.police.cars = [];
+    game.police.cops = [];
+    game.police.heli = null;
+    game.dialogue = null;
     return { screen: SCREEN_PLAY };
   }
   // start: six seconds of city life behind the title screen, at neon night — the lit

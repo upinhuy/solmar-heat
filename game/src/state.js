@@ -2,12 +2,13 @@
 // loop in main.js and the shot scenes in shots.js both drive the game through stepGame().
 // stepGame returns the events that happened, so the caller can play sounds and announce them.
 // The step also keeps the city breathing: fountain spray arcs over the plazas, dust motes
-// drift through the streets, a horn blast from the player's car scatters the crowd wide,
+// drift through the streets, foam sparkles lift off the beach shoreline where the waves
+// break, a horn blast from the player's car scatters the crowd wide,
 // the weather turns — rain rolls in, slicks the streets and rolls out again — and a hard
 // crash kicks the camera (game.shake, which the renderer reads).
 import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, WORLD } from './config.js';
 import { createRandom, distance, pick } from './random.js';
-import { createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { BEACH_EAST, BEACH_WATER_Y, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import {
   cashBurst,
   driftSmoke,
@@ -419,6 +420,20 @@ export function stepGame(game, input, dt) {
       3 + game.rng() * 2,
       '#d8cf9a',
       1.8,
+    ));
+  }
+  // The beach shoreline breathes: along the sand, west of the marina, the breaking
+  // waves throw up brief white flecks at the waterline — visible whenever the player
+  // is near the shore, silent everywhere else.
+  if (player.y > 1750 && game.rng() < dt * 9) {
+    game.particles.push(makeParticle(
+      60 + game.rng() * (BEACH_EAST - 120),
+      BEACH_WATER_Y + 2 + game.rng() * 10,
+      (game.rng() - 0.5) * 16,
+      -14 - game.rng() * 22,
+      0.7 + game.rng() * 0.5,
+      '#eaf6fb',
+      1.6,
     ));
   }
   // Rain: fast streaks slanting down around the player, gone in half a second. The

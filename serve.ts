@@ -50,6 +50,7 @@ const MIME: Record<string, string> = {
   '.opus': 'audio/opus',
   '.flac': 'audio/flac',
   '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/plain; charset=utf-8', // the repo's notes read as plain text, never as markup
 };
 
 createServer((request, response) => {

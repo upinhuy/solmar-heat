@@ -3,9 +3,11 @@
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown|skyline|
-// rain|port|heli (with &seed=N) stages that scene instead of running the loop, paints it
+// rain|port|heli|beach (with &seed=N) stages that scene instead of running the loop, paints it
 // twice and sets window.__shotReady for a screenshot. The heli scene is the five-star
 // night chase: roadblocks on the ground, the police helicopter's searchlight overhead.
+// The beach scene is the golden-hour cruise along the coast road, the resort district
+// on one side and the sand and sea on the other.
 import { STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
 import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
@@ -178,6 +180,9 @@ function runGame() {
         audio.siren(game.police.sirenOn);
         audio.rain(game.weather.rain);
         audio.heli(!!game.police.heli); // the rotor wash follows the five-star bird
+        // The sea follows the player too: silent inland, a slow wash near the shore —
+        // closest along the beach, where the sand runs down to the water.
+        audio.waves(Math.max(0, Math.min(1, (game.player.y - 1750) / 560)));
         if (result.busted) {
           screen = SCREEN_BUSTED;
           audio.engine(0); // the run is over: the engine and siren stop with it

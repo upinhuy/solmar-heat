@@ -44,13 +44,17 @@ function spawnPointNear(game) {
   // A driver mostly meets the law in front of him: prefer a far spot in the hemisphere he
   // is heading into, and only fall back to anywhere far when the tries run out.
   const heading = p.inCar && p.car ? p.car.angle : p.angle;
+  // Down in the beach district the shore is a trap with one road out: units answering a
+  // call there roll in along the southern streets, so the heat arrives on the coast road
+  // and the avenues feeding it instead of across town.
+  const atBeach = p.x < 1500 && p.y > 1750;
   let fallback = null;
   for (let tries = 0; tries < 12; tries += 1) {
     const spot = randomRoadPoint(game.rng);
     if (distance(spot.x, spot.y, p.x, p.y) <= COP.spawnDistance) continue;
     if (!fallback) fallback = spot;
     const ahead = Math.cos(heading) * (spot.x - p.x) + Math.sin(heading) * (spot.y - p.y);
-    if (ahead > 0) return spot;
+    if (ahead > 0 && (!atBeach || spot.y > 1400)) return spot;
   }
   if (fallback) return fallback;
   const spot = randomRoadPoint(game.rng);

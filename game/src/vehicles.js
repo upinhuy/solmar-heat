@@ -1,5 +1,6 @@
 // Cars and people: the player driving, traffic following the streets (and yielding instead
-// of piling up), pedestrians on the sidewalks who scatter when a car comes at them fast,
+// of piling up — and easing off along the coast road, where the promenade crowds cross to
+// the beach), pedestrians on the sidewalks who scatter when a car comes at them fast,
 // bullets and particles. Cars come in several body shapes — sedan, hatchback, pickup, van,
 // the low sport shape, a long limousine and a narrow motorcycle with a rider — each with
 // its own size, and the odd yellow taxi among the sedans. Brake lights flare when a car
@@ -174,6 +175,9 @@ export function updateTraffic(car, dt, random, buildings, others, time) {
   // Slow down when the goal is off the nose: a slower car turns tighter and stays on the
   // street instead of swinging wide across the block corners.
   let speed = Math.min(car.speedTarget, dist * 2) * clamp(1.15 - Math.abs(turn) * 0.55, 0.3, 1);
+  // The coast road runs along the beach: drivers ease off there, where the promenade
+  // crowds drift across to the sand — the shore traffic ambles instead of hurrying.
+  if (Math.abs(car.y - 2250) < 34) speed *= 0.78;
   // Yield: something close ahead in my lane means I crawl until it clears.
   if (others) {
     const fx = Math.cos(car.angle);

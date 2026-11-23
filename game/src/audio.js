@@ -15,6 +15,9 @@ export function createAudio() {
   let heliSource = null;
   let heliGain = null;
   let heliLfo = null;
+  let waveSource = null;
+  let waveGain = null;
+  let waveLfo = null;
   let lastThunder = 0;
   let muted = false;
 
@@ -212,6 +215,42 @@ export function createAudio() {
         heliLfo.start();
       }
       heliGain.gain.setTargetAtTime(0.05, context.currentTime, 0.3);
+    },
+    /** The sea along the south shore: a slow-breathing wash of low noise whose loudness
+     * follows how close the player stands to the water (0 = inland, silent). Call every
+     * frame; the swell period is long, so the beach sounds lazy even mid-chase. */
+    waves(closeness) {
+      if (closeness <= 0) {
+        if (waveGain) waveGain.gain.setTargetAtTime(0, context.currentTime, 0.5);
+        return;
+      }
+      if (!ensure()) return;
+      if (!waveSource) {
+        waveSource = context.createBufferSource();
+        waveSource.buffer = noiseBuffer;
+        waveSource.loop = true;
+        const filter = context.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 520;
+        const swell = context.createGain();
+        swell.gain.value = 0.6;
+        waveLfo = context.createOscillator();
+        waveLfo.type = 'sine';
+        waveLfo.frequency.value = 0.11; // one swell every nine seconds or so
+        const lfoGain = context.createGain();
+        lfoGain.gain.value = 0.4;
+        waveLfo.connect(lfoGain);
+        lfoGain.connect(swell.gain);
+        waveGain = context.createGain();
+        waveGain.gain.value = 0;
+        waveSource.connect(filter);
+        filter.connect(swell);
+        swell.connect(waveGain);
+        waveGain.connect(master);
+        waveSource.start();
+        waveLfo.start();
+      }
+      waveGain.gain.setTargetAtTime(0.015 + closeness * 0.05, context.currentTime, 0.8);
     },
     /** The police siren: two alternating tones. Call every frame with on/off. */
     siren(on) {

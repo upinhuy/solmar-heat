@@ -1,12 +1,15 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Fourteen missions in order, each a small state machine with an objective, a map marker,
+// Sixteen missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
-// next. Between story jobs, two repeatable side activities pay cash — generously, so a
+// next. The last two jobs before the finale work the new beach resort district: a meet on
+// the sand that turns into a firefight among the umbrellas, and a timed run in a marked
+// coupe along the coast road to a drop at the far end of the beach. Between story jobs,
+// two repeatable side activities pay cash — generously, so a
 // free-roaming Rico can earn his keep: street races from the green flag and courier runs
 // from the depot — they run on their own state, alongside whatever the story is doing.
 import { distance } from './random.js';
 import { cashBurst, makeCar, makePed, makeSportCar, muzzleFlash } from './vehicles.js';
-import { MARINA, PORT_SPOT, SHOWROOM_SPOT, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, PORT_SPOT, SHOWROOM_SPOT, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import { addWanted, setWanted } from './police.js';
 
 export const HIDEOUT = { x: 150, y: 2100 };
@@ -110,6 +113,21 @@ export const MISSIONS = [
     objectives: ['Go to the port meet', 'Drop all three guards', 'Grab the cash case', 'Bring the case to the hideout'],
   },
   {
+    id: 'boardwalk',
+    name: 'Boardwalk Business',
+    reward: 3800,
+    intro: ['Mara Solis: "New turf, Rico — the beach. A crew from the resorts is moving money on the sand, by the pier."', '"Walk in friendly. It will not stay friendly. The case is the point — it always is."'],
+    objectives: ['Meet the beach crew on the sand', 'Drop all three of them', 'Grab the cash case', 'Bring the case to the hideout'],
+  },
+  {
+    id: 'coastrun',
+    name: 'The Coast Run',
+    reward: 4200,
+    intro: ['Mara Solis: "The gold coupe by the coast road, Rico — a collector\'s car with a buyer waiting down the beach."', '"Ninety-five seconds along the shore. Mind the promenade crowds — and the two stars that come free."'],
+    objectives: ['Steal the marked coupe on the coast road', 'Reach the beach drop before the clock runs out'],
+    timer: 95,
+  },
+  {
     id: 'finale',
     name: 'One Last Ride',
     reward: 4000,
@@ -172,7 +190,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-13): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-15): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -255,6 +273,17 @@ export function startMission(game, index) {
     // truck waits: open ground, so the guards can stand and fight on the asphalt.
     m.casePoint = { x: PORT_SPOT.x, y: PORT_SPOT.y };
     m.marker = { x: PORT_SPOT.x, y: PORT_SPOT.y };
+  } else if (def.id === 'boardwalk') {
+    // The meet is on the sand itself, west of the beach pier: open ground among the
+    // umbrellas, so the crew can stand and fight where the swimmers were.
+    m.casePoint = { x: BEACH_MEET.x, y: BEACH_MEET.y };
+    m.marker = { x: BEACH_MEET.x, y: BEACH_MEET.y };
+  } else if (def.id === 'coastrun') {
+    // The collector's coupe waits kerbside on the coast road, facing the beach.
+    const coupe = makeCar(game.rng, { x: COAST_PARK.x, y: COAST_PARK.y, angle: COAST_PARK.angle, kind: 'mission', shape: 'sport', color: '#c9a13b', missionCar: true });
+    game.cars.push(coupe);
+    m.missionCar = coupe;
+    m.marker = { x: coupe.x, y: coupe.y };
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -325,7 +354,8 @@ export function currentObjective(game) {
   if (def.id === 'nightrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'dawnrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'rushhour' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
-  if ((def.id === 'showdown' || def.id === 'shipyard') && m.step === 1) {
+  if (def.id === 'coastrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk') && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
   }
@@ -661,6 +691,62 @@ export function updateMissions(game, dt, events) {
       }
     } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
       finishMission(game, events);
+    }
+  } else if (def.id === 'boardwalk') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 60 && !player.inCar) {
+        m.step = 1;
+        // The beach crew spreads out over the sand around the meet: bright shirts,
+        // bad intentions, nowhere to hide but the umbrellas.
+        const offsets = [[-95, -14], [88, 10], [6, -64]];
+        m.hostiles = offsets.map(([ox, oy]) => {
+          const h = makePed(game.rng, m.casePoint.x + ox, m.casePoint.y + oy);
+          h.shirt = '#e07b39';
+          h.hostile = true;
+          h.shootCd = 0.9 + game.rng() * 0.9;
+          game.peds.push(h);
+          return h;
+        });
+        addWanted(game.police, 1);
+        m.marker = null;
+        say(game, ['Beach boss: "This sand is ours, Vega. The case stays on it."']);
+      }
+    } else if (m.step === 1) {
+      updateHostiles(game, dt, events);
+      if (m.hostiles.every((h) => h.down > 0)) {
+        m.step = 2;
+        m.marker = { x: m.casePoint.x, y: m.casePoint.y };
+        say(game, ['Mara Solis: "Quiet on the beach. Grab the case, Rico."']);
+      }
+    } else if (m.step === 2) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
+        m.step = 3;
+        setWanted(game.police, 3);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Case is yours. Three stars over the boardwalk — bring it home."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
+    }
+  } else if (def.id === 'coastrun') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        m.timer = def.timer || 95;
+        setWanted(game.police, 2);
+        m.door = { x: BEACH_DROP.x, y: BEACH_DROP.y };
+        m.marker = { x: BEACH_DROP.x, y: BEACH_DROP.y };
+        say(game, ['Mara Solis: "Ninety-five seconds. Down the coast road, onto the sand, do not stop."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'Too slow — the buyer walked down the beach and vanished.');
+        return;
+      }
+      if (distance(player.x, player.y, m.door.x, m.door.y) < 75 && player.inCar && player.car === m.missionCar) {
+        finishMission(game, events);
+      }
     }
   } else if (def.id === 'finale') {
     if (m.step === 0) {

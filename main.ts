@@ -5,11 +5,13 @@
 // summary the judge reads, with the vendored make.fun library.
 //
 // Solmar Heat: an original open-world crime game. Explore the city of Solmar on foot and by
-// car, steal cars, run fourteen story missions for Mara Solis — getaway driving, a timed hot
+// car, steal cars, run sixteen story missions for Mara Solis — getaway driving, a timed hot
 // delivery, a tail, a heist, a convoy job, a harbour showdown against rivals who shoot back,
 // a marked-car swap, a timed night run, a truck heist in the industrial port, a limousine
 // dash against the clock, a rush-hour coupe run through the downtown lights, a shootout
-// over a cash case in the container yards, and a five-star finale — plus repeatable street races
+// over a cash case in the container yards, a firefight on the sand of the new beach resort
+// district, a timed coast-road run to a drop at the far end of the beach, and a five-star
+// finale — plus repeatable street races
 // and courier runs that pay generously on the side. Earn cash and stay ahead of the Solmar
 // police as the wanted level rises: the chase cars aim where you are heading, three stars
 // brings an extra car and a faster response, at four stars the
@@ -21,7 +23,11 @@
 // the corners, seven car body shapes with glass and
 // brake lights — sedans, vans, a limousine, motorcycles with riders — yellow taxis, park
 // plazas with fountains, street props, an industrial port district of container yards and
-// gantry cranes painted in harbour colours, a distant skyline, and a marina district along the south shore with a boardwalk, a pier, bobbing boats and animated
+// gantry cranes painted in harbour colours, a distant skyline, a beach resort district
+// along the south-west shore — a wide sand beach with umbrellas, loungers, kiosks, a
+// volleyball net and lifeguard towers under its own pier, and a row of pastel resort
+// blocks with turquoise pools behind the coast road — and a marina district along the
+// south shore with a boardwalk, a pier, bobbing boats and animated
 // water — all under a day/night sky with lamp glow and neon spill after dark, lamplight
 // smearing across wet asphalt, thunder under the heavier storms, and rain
 // that slicks the streets and doubles the neon. Put your

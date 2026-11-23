@@ -1,13 +1,16 @@
 // The city of Solmar: an 8x8 grid of streets, blocks full of buildings, park plazas with
 // fountains, street props, and a marina along the south shore — a boardwalk, a pier and
 // moored boats on the water. The south-east blocks are the industrial port: concrete yards
-// stacked with shipping containers under gantry cranes. A distant skyline of towers rings
+// stacked with shipping containers under gantry cranes. West of the marina the shore turns
+// to a beach resort district: a wide sand beach with umbrellas, loungers, kiosks and
+// lifeguard towers under a second pier, and a row of pastel resort blocks with pools
+// behind the coast road. A distant skyline of towers rings
 // the north and east edges, beyond the streets. Every intersection carries a working
 // traffic signal, phased off one shared cycle, and the traffic obeys it. Plus the helpers
 // the rest of the game uses to ask the city questions (is this a road? does this circle
 // hit a building? where is the nearest street?). Nothing here draws or listens to input.
-import { AWNING_COLORS, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, WORLD } from './config.js';
-import { clamp, intRange, pick, range } from './random.js';
+import { AWNING_COLORS, BEACH_SIGN_NAMES, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, UMBRELLA_COLORS, WORLD } from './config.js';
+import { clamp, intRange, pick, range, vary } from './random.js';
 
 export const ROADS = [];
 for (let i = 0; i < 8; i += 1) ROADS.push(FIRST_ROAD + i * ROAD_GAP);
@@ -20,6 +23,20 @@ export const MARINA = { x: 1950, y: 2250 };
 export const PIER = { x: 1915, w: 42, from: 2296, to: 2392 };
 export const SHOWROOM_SPOT = { x: 1650, y: 2296, angle: 0 }; // where the finale's car waits
 export const PORT_SPOT = { x: 1990, y: 1950, angle: Math.PI / 2 }; // the port job's truck, kerbside in the dock district
+
+// The beach resort district, west of the marina along the same south shore. West of
+// BEACH_EAST the boardwalk gives way to open sand: the beach runs from the coast road's
+// south edge down past the marina's waterline — the sand shelves gently into the sea, so
+// its water starts lower than the marina's — and a wooden pier reaches out over it. The
+// fixed points are where the beach missions meet, fight and drop: they are constants,
+// not city dressing, because a job has to find them in every generated city.
+export const BEACH_EAST = 1470; // the sand ends and the marina boardwalk begins here
+export const BEACH_SAND_TOP = 2282; // level with the boardwalk: where the sand starts
+export const BEACH_WATER_Y = 2338; // the beach's own waterline, lower than the marina's
+export const BEACH_PIER = { x: 742, w: 40, from: 2300, to: 2412 };
+export const BEACH_MEET = { x: 660, y: 2308 }; // on the sand, west of the beach pier
+export const BEACH_DROP = { x: 1250, y: 2304 }; // the east end of the sand, by the last kiosk
+export const COAST_PARK = { x: 430, y: 2206, angle: 0 }; // a kerbside spot on the coast road, facing the beach
 
 // Gantry cranes are painted per crane, not all one grey: harbour colours, rust and steel.
 const CRANE_COLORS = ['#39424e', '#8a5a2c', '#54626e', '#74403a'];
@@ -133,6 +150,12 @@ export function createCity(random) {
   const buoys = []; // channel markers bobbing on the marina water
   const yards = []; // industrial port: concrete slabs under the container stacks
   const cranes = []; // industrial port: gantry cranes straddling the yards
+  const resorts = []; // beach district: sand-paved aprons under the resort blocks
+  const pools = []; // beach district: the resorts' turquoise pools
+  const umbrellas = []; // beach district: shade on the sand — a pole, a bright canopy
+  const loungers = []; // beach district: sun loungers and towels laid out by the umbrellas
+  const kiosks = []; // beach district: little roofed stalls along the top of the sand
+  const lifeguards = []; // beach district: two lifeguard towers watching the water
   const skyline = []; // distant towers along the north and east edges, outside the streets
   const signals = []; // a traffic signal at every intersection, phased off the shared cycle
   for (let ix = 0; ix < 8; ix += 1) {
@@ -181,6 +204,42 @@ export function createCity(random) {
         for (let t = 0; t < 2; t += 1) {
           props.push({ x: bx + random() * (bw - 24), y: by + bh - 20, w: 22, h: 14, kind: 'crate', angle: random() * 0.6 - 0.3 });
         }
+        continue;
+      }
+      // The four blocks behind the beach — the southern row, west of centre — are the
+      // resort district: a sand-paved apron, one low pastel hotel (solid, like any
+      // building), a turquoise pool in front of it, palms everywhere and umbrellas
+      // spotted over the apron. A different biome from downtown: lower, paler, slower.
+      if (iy === 6 && ix <= 3) {
+        resorts.push({ x: bx, y: by, w: bw, h: bh });
+        const hotelW = 118 + random() * 34;
+        const hotelH = 74 + random() * 26;
+        const hotelX = bx + (bw - hotelW) / 2 + range(random, -14, 14);
+        const hotelY = by + 16 + random() * 12;
+        const color = pick(random, COLORS.resort);
+        buildings.push({
+          x: hotelX,
+          y: hotelY,
+          w: hotelW,
+          h: hotelH,
+          color,
+          roof: pick(random, ['#b8a888', '#a89a80', '#c2b294']),
+          height: 9 + random() * 6, // resorts stay low: two floors and a sea view
+          sign: { text: pick(random, BEACH_SIGN_NAMES), color: pick(random, NEON_COLORS) },
+          awning: pick(random, AWNING_COLORS),
+          gear: intRange(random, 0, 2),
+          tank: false,
+          kind: 'resort',
+        });
+        // The pool sits between the hotel and the coast road, clear of the building.
+        pools.push({ x: bx + bw / 2, y: hotelY + hotelH + 52, w: 92, h: 44 });
+        for (let t = 0; t < 6; t += 1) {
+          trees.push({ x: bx + 14 + random() * (bw - 28), y: by + 14 + random() * (bh - 28), r: 10 + random() * 3.5, palm: true });
+        }
+        for (let u = 0; u < 3; u += 1) {
+          umbrellas.push({ x: bx + 30 + random() * (bw - 60), y: by + bh - 34 + range(random, -8, 6), color: pick(random, UMBRELLA_COLORS), phase: random() * Math.PI * 2 });
+        }
+        props.push({ x: bx + bw - 26, y: by + bh - 22, w: 10, h: 10, kind: 'bin', angle: 0 });
         continue;
       }
       // Some blocks are park plazas instead of buildings: trees, a fountain, benches.
@@ -273,10 +332,29 @@ export function createCity(random) {
   for (let i = 0; i < 3; i += 1) {
     props.push({ x: 420 + i * 700 + range(random, -30, 30), y: 2290, w: 10, h: 10, kind: 'bin', angle: 0 });
   }
+  // The beach itself, west of BEACH_EAST: two loose rows of umbrellas down the sand with
+  // loungers and towels under them, three kiosks along the top edge where the promenade
+  // would be, a volleyball net staked out mid-beach, and two lifeguard towers watching
+  // the water. Palms already line the top of the sand from the marina loop above.
+  for (let x = 170; x < BEACH_EAST - 90; x += 118) {
+    for (const rowY of [2300, 2322]) {
+      if (random() < 0.22) continue; // gaps in the rows: a lived-in beach, not a parade
+      const ux = vary(random, x, 22);
+      umbrellas.push({ x: ux, y: vary(random, rowY, 5), color: pick(random, UMBRELLA_COLORS), phase: random() * Math.PI * 2 });
+      loungers.push({ x: ux + range(random, -20, 20), y: rowY + 13, angle: range(random, -0.4, 0.4), color: pick(random, UMBRELLA_COLORS) });
+      if (random() < 0.6) loungers.push({ x: ux + range(random, -24, 24), y: rowY + 14, angle: range(random, -0.4, 0.4), color: pick(random, UMBRELLA_COLORS), towel: true });
+    }
+  }
+  for (const kx of [240, 830, 1330]) {
+    kiosks.push({ x: kx + range(random, -14, 14), y: 2290, color: pick(random, AWNING_COLORS), label: pick(random, ['HELADOS', 'REFRESCOS', 'PLAYA BAR', 'COCOS']) });
+  }
+  lifeguards.push({ x: 420, y: 2310 }, { x: 1120, y: 2310 });
+  props.push({ x: 928, y: 2309, w: 46, h: 6, kind: 'net', angle: 0.06 }); // the volleyball net, staked out mid-beach
   const boatColors = ['#d8d8d8', '#b8443a', '#3a6db8', '#e8b23a', '#4d8a4d'];
-  for (let i = 0; i < 6; i += 1) {
+  // The boats moor off the marina, east of the beach: swimmers get the west water.
+  for (let i = 0; i < 4; i += 1) {
     boats.push({
-      x: 260 + i * 390 + range(random, -60, 60),
+      x: 1620 + i * 205 + range(random, -40, 40),
       y: 2352 + range(random, -8, 22),
       angle: range(random, -0.16, 0.16),
       color: pick(random, boatColors),
@@ -302,7 +380,7 @@ export function createCity(random) {
     skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
     sy += w + 4 + random() * 22;
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals };
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

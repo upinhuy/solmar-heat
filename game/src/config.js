@@ -97,6 +97,14 @@ export const COLORS = {
   boardwalkDark: '#6f573c',
   sand: '#c9b27a',
   sandWet: '#a68f5e',
+  // The beach resort district along the south-west shore: dry sand up the beach, a paler
+  // packed-sand promenade where the kiosks stand, pastel resort blocks behind the coast
+  // road, and the turquoise of their pools.
+  sandDry: '#d9c48c',
+  sandPale: '#e3d09e',
+  pool: '#2fa8b8',
+  poolDeep: '#1f7f96',
+  resort: ['#e8d8b0', '#dfc9a8', '#cfd8c2', '#e5c1b4', '#d8cf9f', '#c9d4de'],
   plaza: '#7d7468',
   race: '#3fd06a',
   courier: '#39c2d7',
@@ -125,5 +133,13 @@ export const SIGN_NAMES = [
 ];
 export const NEON_COLORS = ['#ff4d8a', '#39c2d7', '#b46aff', '#ffb84d', '#3fd06a', '#ff6a5e'];
 export const AWNING_COLORS = ['#b8443a', '#2c8a8a', '#c9a13b', '#7a4d8a'];
+// The resort blocks fly their own names over the coast road: beach hotels and bars in
+// the same neon, read from the sand as much as from the street.
+export const BEACH_SIGN_NAMES = [
+  'HOTEL BRISA', 'PALMS RESORT', 'BAR OLA', 'CAFE ARENA', 'CLUB MAREA', 'HOTEL CORAL',
+  'BAR BRISA', 'SUITES SOLMAR', 'CHIRINGUITO', 'HOTEL FARO',
+];
+// Beach umbrellas and loungers: the bright holiday palette the sand is dressed in.
+export const UMBRELLA_COLORS = ['#e23b30', '#f2a81d', '#39c2d7', '#3fd06a', '#ff4d8a', '#f2e3c9', '#b46aff'];
 
 export const SAVE_KEY = 'solmar-heat-save-v1';

@@ -89,6 +89,12 @@ export function createInput(canvas) {
   canvas.addEventListener('pointerup', () => {
     mouseDown = false;
   });
+  canvas.addEventListener('pointercancel', () => {
+    // A cancelled pointer (the browser took the gesture over) must not leave the mouse
+    // stuck down: a stuck button would keep Rico firing long after the player let go.
+    mouseDown = false;
+    clicked = false;
+  });
 
   return {
     /** WASD/arrows as {x, y} in -1..1. */
