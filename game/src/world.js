@@ -3,7 +3,7 @@
 // moored boats on the water. Plus the helpers the rest of the game uses to ask the city
 // questions (is this a road? does this circle hit a building? where is the nearest street?).
 // Nothing here draws or listens to input.
-import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, WORLD } from './config.js';
+import { AWNING_COLORS, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGN_NAMES, WORLD } from './config.js';
 import { clamp, intRange, pick, range } from './random.js';
 
 export const ROADS = [];
@@ -104,9 +104,10 @@ export function createCity(random) {
   const buildings = [];
   const trees = [];
   const lamps = [];
-  const props = []; // benches, dumpsters and crates: pure street dressing
+  const props = []; // benches, dumpsters, crates, hydrants, newsboxes, planters: street dressing
   const fountains = []; // one at the heart of every park plaza
   const boats = [];
+  const buoys = []; // channel markers bobbing on the marina water
   const half = ROAD_WIDTH / 2;
   // One building per block, inset from the streets, with a roof colour and a height for shading.
   for (let ix = 0; ix < 7; ix += 1) {
@@ -139,6 +140,12 @@ export function createCity(random) {
         color,
         roof,
         height: 14 + random() * 26,
+        // Dressing the renderer reads: a neon signboard on some commercial blocks, a
+        // striped awning on others, roof clutter (vents, AC boxes, a water tank).
+        sign: random() < 0.3 ? { text: pick(random, SIGN_NAMES), color: pick(random, NEON_COLORS) } : null,
+        awning: random() < 0.26 ? pick(random, AWNING_COLORS) : null,
+        gear: intRange(random, 0, 3),
+        tank: bw - inset > 120 && bh - inset > 120 && random() < 0.5,
       });
       // A third of the blocks squeeze in a smaller annex, so no two blocks read the same.
       if (random() < 0.34) {
@@ -152,7 +159,17 @@ export function createCity(random) {
           color: pick(random, COLORS.building),
           roof: pick(random, COLORS.roof),
           height: 8 + random() * 14,
+          sign: null,
+          awning: random() < 0.14 ? pick(random, AWNING_COLORS) : null,
+          gear: intRange(random, 0, 1),
+          tank: false,
         });
+      }
+      // Small street furniture at a block corner: a hydrant, a newsbox or a planter.
+      if (random() < 0.55) {
+        const kind = pick(random, ['hydrant', 'newsbox', 'planter']);
+        const size = kind === 'planter' ? { w: 22, h: 12 } : { w: 9, h: 9 };
+        props.push({ x: bx + 4, y: by + bh - size.h - 4, w: size.w, h: size.h, kind, angle: 0 });
       }
       for (let t = 0; t < 3; t += 1) {
         trees.push({ x: bx + random() * bw, y: by + random() * bh, r: 8 + random() * 6 });
@@ -183,9 +200,14 @@ export function createCity(random) {
       y: 2352 + range(random, -8, 22),
       angle: range(random, -0.16, 0.16),
       color: pick(random, boatColors),
+      sail: i % 3 === 0, // every third boat is a sailboat with a tall white triangle
+      phase: random() * Math.PI * 2, // where its bobbing starts
     });
   }
-  return { buildings, trees, lamps, props, fountains, boats };
+  for (let i = 0; i < 5; i += 1) {
+    buoys.push({ x: 340 + i * 430 + range(random, -50, 50), y: 2376 + range(random, -10, 14), phase: random() * Math.PI * 2 });
+  }
+  return { buildings, trees, lamps, props, fountains, boats, buoys };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

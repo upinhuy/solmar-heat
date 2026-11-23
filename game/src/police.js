@@ -1,8 +1,9 @@
 // The wanted system: stars 0-5, police cars and foot cops who spawn at the edge of the
 // player's view and chase, an arrest when a cop holds the player, and the heat cooling off
 // when the player stays out of sight. The chase is smarter than a beeline: cars aim where
-// the player is heading, not where he is, and at four stars the PD parks roadblocks across
-// the road ahead. Crimes raise the stars; hiding lowers them.
+// the player is heading, not where he is, fresh units prefer to appear ahead of a driver,
+// and at four stars the PD parks roadblocks across the road ahead — two cars, and three
+// at the full five stars. Crimes raise the stars; hiding lowers them.
 import { COP, WANTED_MAX, WORLD } from './config.js';
 import { angleDelta, clamp, distance } from './random.js';
 import { driveCar, makeCar } from './vehicles.js';
@@ -33,10 +34,18 @@ export function setWanted(police, n) {
 
 function spawnPointNear(game) {
   const p = game.player;
+  // A driver mostly meets the law in front of him: prefer a far spot in the hemisphere he
+  // is heading into, and only fall back to anywhere far when the tries run out.
+  const heading = p.inCar && p.car ? p.car.angle : p.angle;
+  let fallback = null;
   for (let tries = 0; tries < 12; tries += 1) {
     const spot = randomRoadPoint(game.rng);
-    if (distance(spot.x, spot.y, p.x, p.y) > COP.spawnDistance) return spot;
+    if (distance(spot.x, spot.y, p.x, p.y) <= COP.spawnDistance) continue;
+    if (!fallback) fallback = spot;
+    const ahead = Math.cos(heading) * (spot.x - p.x) + Math.sin(heading) * (spot.y - p.y);
+    if (ahead > 0) return spot;
   }
+  if (fallback) return fallback;
   const spot = randomRoadPoint(game.rng);
   return { x: clamp(spot.x, 60, WORLD - 60), y: clamp(spot.y, 60, WORLD - 60) };
 }
@@ -79,9 +88,11 @@ function setRoadblock(game) {
   };
   const spot = nearestRoadPoint(ahead.x, ahead.y);
   // Sideways across the street: the cars' noses point along the street's cross direction.
+  // At the full five stars a third car closes the middle gap.
   const onVertical = Math.abs(spot.x - ahead.x) < Math.abs(spot.y - ahead.y);
   const across = onVertical ? Math.PI / 2 : 0;
-  for (const offset of [-19, 19]) {
+  const offsets = police.wanted >= WANTED_MAX ? [-27, 0, 27] : [-19, 19];
+  for (const offset of offsets) {
     const x = onVertical ? spot.x + offset : spot.x;
     const y = onVertical ? spot.y : spot.y + offset;
     const car = makeCar(game.rng, { x, y, angle: across, kind: 'police', color: '#1c2733', police: true, speedTarget: COP.carSpeed });
@@ -148,7 +159,7 @@ export function updatePolice(game, dt, events) {
       player.health -= 10 * dt * 10;
       player.lastHurt = game.time;
     }
-    car.siren = 1;
+    car.siren = (car.siren || 0) + dt; // the light bar's clock: it drives the flash phase
     if (car.roadblock) {
       if (d > 150) continue; // hold the line, lights flashing
       car.roadblock = false; // the player is here: chase

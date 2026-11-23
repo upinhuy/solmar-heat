@@ -1,6 +1,8 @@
 // The game state and one fixed simulation step. No drawing and no browser calls here: the
 // loop in main.js and the shot scenes in shots.js both drive the game through stepGame().
 // stepGame returns the events that happened, so the caller can play sounds and announce them.
+// The step also keeps the city breathing: fountain spray arcs over the plazas, dust motes
+// drift through the streets, and a horn blast from the player's car startles the crowd.
 import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, WORLD } from './config.js';
 import { createRandom, distance, pick } from './random.js';
 import { createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
@@ -75,6 +77,7 @@ export function createGame(seed, saved) {
     shootCooldown: 0,
     stealCooldown: 0,
     pedCooldown: 0,
+    hornCd: 0,
     lastHurt: -99,
   };
   const game = {
@@ -216,11 +219,20 @@ export function stepGame(game, input, dt) {
   player.shootCooldown = Math.max(0, player.shootCooldown - dt);
   player.stealCooldown = Math.max(0, player.stealCooldown - dt);
   player.pedCooldown = Math.max(0, player.pedCooldown - dt);
+  player.hornCd = Math.max(0, player.hornCd - dt);
   player.aim = input.aim;
 
   if (input.enter) {
     const event = enterExitCar(game);
     if (event) events.push(event);
+  }
+  // The horn: a short blast that startles nearby pedestrians into a half-second scatter.
+  if (input.horn && player.inCar && player.hornCd <= 0) {
+    player.hornCd = 0.5;
+    events.push({ type: 'horn', x: player.x, y: player.y });
+    for (const ped of game.peds) {
+      if (ped.down <= 0 && distance(ped.x, ped.y, player.x, player.y) < 130) ped.flee = Math.max(ped.flee, 0.4);
+    }
   }
   if (input.punch) playerPunch(game, events);
   if (input.shoot) playerShoot(game, events);
@@ -357,6 +369,33 @@ export function stepGame(game, input, dt) {
 
   for (let i = game.particles.length - 1; i >= 0; i -= 1) {
     if (!updateParticle(game.particles[i], dt)) game.particles.splice(i, 1);
+  }
+
+  // Ambience: fountain spray arcs over the plazas, and dust motes drift near the player.
+  if (game.city.fountains.length && game.rng() < dt * 14) {
+    const f = pick(game.rng, game.city.fountains);
+    const spray = makeParticle(
+      f.x + (game.rng() - 0.5) * 6,
+      f.y + (game.rng() - 0.5) * 6,
+      (game.rng() - 0.5) * 130,
+      -60 - game.rng() * 90,
+      0.55,
+      '#cfe8f7',
+      2,
+    );
+    spray.grav = 340;
+    game.particles.push(spray);
+  }
+  if (game.rng() < dt * 5) {
+    game.particles.push(makeParticle(
+      player.x + (game.rng() - 0.5) * 1100,
+      player.y + (game.rng() - 0.5) * 700,
+      12 + game.rng() * 14,
+      3 + game.rng() * 6,
+      3 + game.rng() * 2,
+      '#d8cf9a',
+      1.8,
+    ));
   }
 
   const busted = updatePolice(game, dt, events);

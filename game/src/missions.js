@@ -1,5 +1,5 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Eight missions in order, each a small state machine with an objective, a map marker,
+// Ten missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
 // next. Between story jobs, two repeatable side activities pay cash: street races from the
 // green flag and courier runs from the depot — they run on their own state, alongside
@@ -65,6 +65,21 @@ export const MISSIONS = [
     objectives: ['Go to the marina meet', 'Drop all four rivals', 'Grab the cash case'],
   },
   {
+    id: 'swap',
+    name: 'The Swap',
+    reward: 2600,
+    intro: ['Mara Solis: "A buyer at the marina wants one specific car — the teal coupe on your map."', '"Take it to the boardwalk and hand him the keys. Cash, no names, no questions."'],
+    objectives: ['Steal the marked car', 'Deliver it to the buyer at the marina'],
+  },
+  {
+    id: 'nightrun',
+    name: 'Night Run',
+    reward: 2800,
+    intro: ['Mara Solis: "Night work, Rico. A courier bag waits across town — the yellow marker."', '"Grab it, then beat the clock to the drop. And Rico — the PD naps lightly."'],
+    objectives: ['Reach the courier bag', 'Deliver it before the clock runs out'],
+    timer: 75,
+  },
+  {
     id: 'finale',
     name: 'One Last Ride',
     reward: 4000,
@@ -127,7 +142,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-7): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-9): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -186,6 +201,11 @@ export function startMission(game, index) {
     m.marker = { x: van.x, y: van.y };
   } else if (def.id === 'showdown') {
     m.marker = { x: MARINA.x, y: MARINA.y };
+  } else if (def.id === 'swap') {
+    m.missionCar = placeMissionCar(game, 'mission', '#2c8a8a');
+    m.marker = { x: m.missionCar.x, y: m.missionCar.y };
+  } else if (def.id === 'nightrun') {
+    m.marker = farPoint(game, player, 700);
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -253,6 +273,7 @@ export function currentObjective(game) {
   let text = `${def.name}: ${def.objectives[m.step]}`;
   if (def.id === 'tail') text += ` — ${Math.floor(m.progress)}%`;
   if (def.id === 'hot' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if (def.id === 'nightrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'showdown' && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
@@ -467,6 +488,37 @@ export function updateMissions(game, dt, events) {
       }
     } else if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
       finishMission(game, events);
+    }
+  } else if (def.id === 'swap') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        setWanted(game.police, 2);
+        m.marker = { x: MARINA.x, y: MARINA.y };
+        say(game, ['Mara Solis: "Two stars for your trouble. The buyer waits by the pier — move."']);
+      }
+    } else if (distance(player.x, player.y, MARINA.x, MARINA.y) < 90 && player.inCar && player.car === m.missionCar) {
+      finishMission(game, events);
+    }
+  } else if (def.id === 'nightrun') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.marker.x, m.marker.y) < 65) {
+        m.step = 1;
+        m.door = farPoint(game, player, 900);
+        m.marker = { x: m.door.x, y: m.door.y };
+        m.timer = def.timer || 75;
+        setWanted(game.police, 2);
+        say(game, ['Mara Solis: "Bag is yours. Seventy-five seconds — and the whole PD heard the alarm."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'The drop went cold — the buyer vanished into the night.');
+        return;
+      }
+      if (distance(player.x, player.y, m.door.x, m.door.y) < 70) {
+        finishMission(game, events);
+      }
     }
   } else if (def.id === 'finale') {
     if (m.step === 0) {

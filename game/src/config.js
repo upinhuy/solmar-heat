@@ -24,9 +24,9 @@ export const PLAYER = {
 // How much of the city is alive when a run starts. More traffic and more pedestrians make
 // the streets feel crowded, which is what the screenshots and the driving both feed on.
 export const CITY_POPULATION = {
-  parkedCars: 12,
-  trafficCars: 16,
-  pedestrians: 34,
+  parkedCars: 14,
+  trafficCars: 18,
+  pedestrians: 38,
 };
 
 export const CAR = {
@@ -60,10 +60,16 @@ export const COP = {
 export const COLORS = {
   grass: '#2e5d3a',
   grassDark: '#274f31',
-  road: '#3a3f46',
+  road: '#34383f',
   roadLine: '#d8c95a',
+  roadEdge: '#9aa0a6',
+  roadTrack: 'rgba(0,0,0,0.10)',
   sidewalk: '#6d6a63',
+  sidewalkLine: '#5b574f',
   crosswalk: '#cfd4d9',
+  windowLit: '#ffd98a',
+  windowDark: '#26313f',
+  taxi: '#f2c230',
   building: ['#7a5a44', '#5d6b7a', '#8a6f4d', '#4d5d6b', '#75604f', '#66755a'],
   roof: ['#4a3a2e', '#3d4a57', '#5d4a35', '#37424e'],
   player: '#e8b23a',
@@ -75,14 +81,26 @@ export const COLORS = {
   cash: '#7fd069',
   hud: '#10141a',
   water: '#1d4e6b',
+  waterDeep: '#173f57',
   waterLight: '#2a6a8f',
+  foam: '#bfe3f2',
   boardwalk: '#8a6f4d',
   boardwalkDark: '#6f573c',
   sand: '#c9b27a',
+  sandWet: '#a68f5e',
   plaza: '#7d7468',
   race: '#3fd06a',
   courier: '#39c2d7',
   hostile: '#a03a5e',
 };
+
+// Neon signboards on the commercial buildings: names and tube colours, assigned per
+// building in world.js. After dark these are what make downtown read as a city of lights.
+export const SIGN_NAMES = [
+  'HOTEL SOLMAR', 'BAR PALMA', 'CAFE LUNA', 'TACOS RIO', 'CLUB VERTIGO', 'PIZZA NONA',
+  'GYM ATLAS', 'BARBER 9', 'HOTEL MAR', 'CLUB NEON', 'SUSHI ONDA', 'DISCO FARO',
+];
+export const NEON_COLORS = ['#ff4d8a', '#39c2d7', '#b46aff', '#ffb84d', '#3fd06a', '#ff6a5e'];
+export const AWNING_COLORS = ['#b8443a', '#2c8a8a', '#c9a13b', '#7a4d8a'];
 
 export const SAVE_KEY = 'solmar-heat-save-v1';

@@ -5,15 +5,18 @@
 // summary the judge reads, with the vendored make.fun library.
 //
 // Solmar Heat: an original open-world crime game. Explore the city of Solmar on foot and by
-// car, steal cars, run eight story missions for Mara Solis — getaway driving, a timed hot
+// car, steal cars, run ten story missions for Mara Solis — getaway driving, a timed hot
 // delivery, a tail, a heist, a convoy job, a harbour showdown against rivals who shoot back,
-// and a five-star finale — plus repeatable street races and courier runs for cash on the
-// side. Earn cash and stay ahead of the Solmar police as the wanted level rises: the chase
-// cars aim where you are heading, and at four stars the PD parks roadblocks across the road.
-// The city itself is denser in this version: five car body shapes, park plazas with
-// fountains, street props, and a marina district along the south shore with a boardwalk,
-// a pier and boats. Put your 3 or 4 PNG or JPEG screenshots in screenshots/ (the first by
-// name is the cover) and run it.
+// a marked-car swap, a timed night run, and a five-star finale — plus repeatable street races
+// and courier runs for cash on the side. Earn cash and stay ahead of the Solmar police as
+// the wanted level rises: the chase cars aim where you are heading, and at four stars the
+// PD parks roadblocks across the road.
+// The city itself is denser and better lit in this version: buildings drawn as raised
+// blocks with lit windows, neon signs and awnings, five car body shapes with glass and
+// brake lights, yellow taxis, park plazas with fountains, street props, and a marina
+// district along the south shore with a boardwalk, a pier, bobbing boats and animated
+// water — all under a day/night sky with lamp glow and neon spill after dark. Put your
+// 3 or 4 PNG or JPEG screenshots in screenshots/ (the first by name is the cover) and run it.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:

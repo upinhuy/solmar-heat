@@ -7,7 +7,7 @@
 // window.__shotReady for a screenshot.
 import { STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
-import { ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_BUSTED, SCREEN_DONE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED } from './render.js';
 import { HIDEOUT, createMissions } from './missions.js';
@@ -58,6 +58,7 @@ function runGame() {
   function playEvents(events) {
     for (const event of events) {
       if (event.type === 'shot') audio.shot();
+      else if (event.type === 'horn') audio.horn();
       else if (event.type === 'punch') audio.punch();
       else if (event.type === 'crash') audio.crash();
       else if (event.type === 'checkpoint') {
@@ -145,7 +146,7 @@ function runGame() {
     let actions = input.takeActions();
     handleActions(actions);
     if (screen === SCREEN_PLAY) {
-      stepActions |= actions & (ACTION_PUNCH | ACTION_ENTER);
+      stepActions |= actions & (ACTION_PUNCH | ACTION_ENTER | ACTION_HORN);
       while (accumulator >= STEP) {
         const mouse = input.mouse();
         const world = renderer.screenToWorld(game, mouse.x, mouse.y);
@@ -157,9 +158,10 @@ function runGame() {
           shoot: input.takeClick(),
           punch: !!(stepActions & ACTION_PUNCH),
           enter: !!(stepActions & ACTION_ENTER),
+          horn: !!(stepActions & ACTION_HORN),
         }, STEP);
-        // Enter and punch are one-shot: only the first step that runs gets them.
-        stepActions &= ~(ACTION_PUNCH | ACTION_ENTER);
+        // Enter, punch and the horn are one-shot: only the first step that runs gets them.
+        stepActions &= ~(ACTION_PUNCH | ACTION_ENTER | ACTION_HORN);
         accumulator -= STEP;
         playEvents(result.events);
         // Engine and siren follow the game every step.

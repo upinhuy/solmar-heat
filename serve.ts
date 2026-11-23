@@ -4,6 +4,8 @@
 // requests without a body, and otherwise does nothing clever: this is a development
 // convenience, not a web server for the internet. `--port N` and `--host H` pick where it
 // listens (127.0.0.1 by default, so it stays on your own machine unless you ask otherwise).
+// Every file gets a weak ETag from its size and mtime, so a browser reload during
+// development can revalidate cheaply: an If-None-Match that matches gets a 304.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -61,18 +63,25 @@ createServer((request, response) => {
     return;
   }
   let size: number;
+  let etag: string;
   try {
     const stats = statSync(file);
     if (!stats.isFile()) throw new Error('not a file');
     size = stats.size;
+    etag = `W/"${stats.size}-${Math.floor(stats.mtimeMs)}"`;
   } catch {
     response.writeHead(404).end('not found');
+    return;
+  }
+  if (request.headers['if-none-match'] === etag) {
+    response.writeHead(304, { etag }).end();
     return;
   }
   response.writeHead(200, {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'content-length': size,
     'cache-control': 'no-store',
+    etag,
   });
   if (request.method === 'HEAD') {
     response.end();

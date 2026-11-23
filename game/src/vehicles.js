@@ -1,8 +1,10 @@
 // Cars and people: the player driving, traffic following the streets (and yielding instead
 // of piling up), pedestrians on the sidewalks who scatter when a car comes at them fast,
 // bullets and particles. Cars come in several body shapes — sedan, hatchback, pickup, van
-// and the low sport shape — each with its own size. Physics is simple arcade: accelerate,
-// steer by speed, grip damps sideways slide, buildings stop you with a thud.
+// and the low sport shape — each with its own size, and the odd yellow taxi among the
+// sedans. Brake lights flare when a car slows hard, and police light bars each flash on
+// their own phase. Physics is simple arcade: accelerate, steer by speed, grip damps
+// sideways slide, buildings stop you with a thud.
 import { CAR, PED_SPEED, PLAYER, TRAFFIC_SPEED, WORLD } from './config.js';
 import { angleDelta, clamp, distance, intRange, pick, range } from './random.js';
 import { gridTarget, hitsBuilding, nearestRoadPoint, parkingSpot, randomRoadPoint, ROADS } from './world.js';
@@ -13,6 +15,8 @@ const CAR_COLORS = [
 ];
 const SPORT_COLORS = ['#e8b23a', '#d0342c', '#2f6fd0'];
 const PED_SHIRTS = ['#d8d8d8', '#7a9cc9', '#c97a7a', '#8ac97a', '#c9b27a', '#9a7ac9', '#e07b39', '#39c2d7', '#a03a5e'];
+const PED_HAIR = ['#241a12', '#4a3220', '#8a6420', '#c9c9c9', '#6e2f22', '#101010'];
+const PED_SKIN = ['#e8c39a', '#c98e5f', '#8a5a34', '#f2d3ac', '#6e4525'];
 
 // Body shapes: length, width and collision radius per silhouette.
 export const CAR_SHAPES = {
@@ -36,6 +40,8 @@ export function makeCar(random, opts) {
     else shape = pick(random, CIVILIAN_SHAPES);
   }
   const body = CAR_SHAPES[shape];
+  // A share of the civilian sedans are taxis: yellow, with a roof sign the renderer adds.
+  const taxi = opts.taxi ?? (kind === 'civilian' && shape === 'sedan' && random() < 0.14);
   return {
     id: nextCarId++,
     kind,
@@ -47,7 +53,10 @@ export function makeCar(random, opts) {
     y: opts.y ?? spot.y,
     angle: opts.angle ?? spot.angle,
     speed: 0,
-    color: opts.color || pick(random, CAR_COLORS),
+    color: opts.color || (taxi ? '#f2c230' : pick(random, CAR_COLORS)),
+    taxi,
+    brake: false, // set while the car is braking or crawling: the tail lights flare
+    flashPhase: random() * 2, // police light bars flash out of sync with each other
     traffic: opts.traffic || false,
     police: opts.police || false,
     missionCar: opts.missionCar || false,
@@ -74,6 +83,7 @@ export function driveCar(car, input, dt, buildings) {
   if (input.forward) along += CAR.accel * dt;
   if (input.back) along -= (along > 0 ? CAR.brake : CAR.reverseAccel) * dt;
   if (input.handbrake) along *= Math.max(0, 1 - 3.2 * dt);
+  car.brake = !!input.back || !!input.handbrake;
   along -= along * CAR.drag * dt;
   along = clamp(along, -CAR.maxReverse, CAR.maxSpeed);
   side *= Math.max(0, 1 - CAR.grip * dt);
@@ -168,6 +178,7 @@ export function updateTraffic(car, dt, random, buildings, others) {
       }
     }
   }
+  car.brake = speed < 26; // crawling in a queue or braking for a corner: lights flare
   const oldX = car.x;
   const oldY = car.y;
   car.x += Math.cos(car.angle) * speed * dt;
@@ -222,6 +233,8 @@ export function makePed(random, x, y) {
     angle: random() * Math.PI * 2,
     speed: PED_SPEED * (0.8 + random() * 0.5),
     shirt: pick(random, PED_SHIRTS),
+    hair: pick(random, PED_HAIR),
+    skin: pick(random, PED_SKIN),
     target: null,
     down: 0, // >0 while knocked down
     fade: 0,
@@ -294,6 +307,7 @@ export function updateParticle(p, dt) {
   p.y += p.vy * dt;
   p.vx *= 1 - 2 * dt;
   p.vy *= 1 - 2 * dt;
+  if (p.grav) p.vy += p.grav * dt; // fountain spray arcs back down; smoke and dust do not
   p.life -= dt;
   return p.life > 0;
 }
@@ -301,7 +315,10 @@ export function updateParticle(p, dt) {
 /** A short dust puff behind a driving car, and sparks on a hard hit. */
 export function exhaust(game, car) {
   const back = { x: car.x - Math.cos(car.angle) * 24, y: car.y - Math.sin(car.angle) * 24 };
-  game.particles.push(makeParticle(back.x, back.y, -Math.cos(car.angle) * 30 + range(game.rng, -15, 15), -Math.sin(car.angle) * 30 + range(game.rng, -15, 15), 0.5, '#9a9a9a', 3));
+  // Mostly pale dust; now and then a darker, fatter puff from a hard-working engine.
+  const dirty = game.rng() < 0.22;
+  const puff = makeParticle(back.x, back.y, -Math.cos(car.angle) * 30 + range(game.rng, -15, 15), -Math.sin(car.angle) * 30 + range(game.rng, -15, 15), dirty ? 0.7 : 0.5, dirty ? '#5f5a52' : '#9a9a9a', dirty ? 4.5 : 3);
+  game.particles.push(puff);
 }
 
 /** Grey tyre smoke when the handbrake bites at speed: a fat, slow, pale puff. */

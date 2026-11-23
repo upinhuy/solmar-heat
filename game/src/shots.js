@@ -2,8 +2,8 @@
 // real rules forward from a fresh seeded game for a fixed number of steps, steered by a
 // simple autopilot that drives toward waypoints, so the frame is what a short game really
 // looks like and the same seed always gives the same frame. Each scene also sets the clock,
-// so the light suits the moment: morning over the title, midday downtown, a late-afternoon
-// chase, and the harbour showdown at dusk with the lamps coming on.
+// so the light suits the moment: neon night over the title, midday downtown, a golden-hour
+// four-star chase with the roadblock out, and the harbour showdown at dusk.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -132,20 +132,37 @@ export function stageShot(name, game) {
     return { screen: SCREEN_PLAY };
   }
   if (name === 'chase') {
-    game.clock = 16 * 60 + 20; // golden late afternoon
+    game.clock = 17 * 60 + 40; // golden hour: long light, headlights already glowing
     startRun(game);
     noActivities(game);
     putPlayerInCar(game);
     game.player.health = 400; // a staged scene: the chase lasts the whole photograph
-    setWanted(game.police, 3);
-    // A wide loop around the middle of town, so the police can close in.
-    const route = [
-      { x: 450, y: 1050 },
-      { x: 1950, y: 1050 },
-      { x: 1950, y: 1950 },
-      { x: 450, y: 1950 },
-    ];
-    driveRoute(game, routeTarget(game, route), 18);
+    // A straight eastbound run down the middle road: no corners for the autopilot to
+    // wedge on, and the pursuit forms up behind and ahead of the player on its own.
+    const car = game.player.car;
+    car.x = 900;
+    car.y = 1050;
+    car.angle = 0;
+    car.speed = 0;
+    game.player.x = car.x;
+    game.player.y = car.y;
+    setWanted(game.police, 4); // four stars: the roadblock joins the pursuit
+    const steps = Math.floor(2.7 / STEP);
+    for (let i = 0; i < steps; i += 1) {
+      stepGame(game, { ...IDLE, move: { x: 0, y: -1 } }, STEP);
+    }
+    // Scene dressing: the pursuit AI convoys its cars onto the same point, which reads
+    // as one doubled car in a still frame — string the pack out along the road instead,
+    // and drop the mission-one intro dialogue so the frame is pure action.
+    const pack = [...game.police.cars].sort((a, b) => a.x - b.x);
+    for (let i = 1; i < pack.length; i += 1) {
+      if (Math.abs(pack[i].x - pack[i - 1].x) < 60 && Math.abs(pack[i].y - pack[i - 1].y) < 30) {
+        pack[i].x = pack[i - 1].x - 62;
+        pack[i].y = 1050 + (i % 2 === 0 ? -11 : 11);
+        pack[i].angle = 0;
+      }
+    }
+    game.dialogue = null;
     return { screen: SCREEN_PLAY };
   }
   if (name === 'mission') {
@@ -190,9 +207,10 @@ export function stageShot(name, game) {
     }
     return { screen: SCREEN_PLAY };
   }
-  // start: five seconds of city life behind the title screen, mid-morning.
-  game.clock = 10 * 60;
+  // start: six seconds of city life behind the title screen, at neon night — the lit
+  // windows, the signs and the lamp pools are the city's best face after dark.
+  game.clock = 20 * 60 + 45;
   noActivities(game);
-  for (let i = 0; i < 5 / STEP; i += 1) stepGame(game, IDLE, STEP);
+  for (let i = 0; i < 6 / STEP; i += 1) stepGame(game, IDLE, STEP);
   return { screen: SCREEN_TITLE };
 }

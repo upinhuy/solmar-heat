@@ -50,3 +50,15 @@ export function angleDelta(from, to) {
 export function distance(ax, ay, bx, by) {
   return Math.hypot(ax - bx, ay - by);
 }
+
+/**
+ * A deterministic hash of two integers, returned in [0, 1). The renderer uses it to give
+ * every building a fixed window pattern — which windows are lit, where the roof clutter
+ * sits — without spending game state on decoration: the same building hashes the same in
+ * every frame and every run.
+ */
+export function hash01(a, b) {
+  let h = (a | 0) * 374761393 + (b | 0) * 668265263;
+  h = (h ^ (h >> 13)) * 1274126177;
+  return ((h ^ (h >> 16)) >>> 0) / 4294967296;
+}

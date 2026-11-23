@@ -9,6 +9,7 @@ export const ACTION_MUTE = 8;
 export const ACTION_NEW = 16;
 export const ACTION_PUNCH = 32;
 export const ACTION_RESTART = 64;
+export const ACTION_HORN = 128;
 
 const CONFIRM = new Set(['Enter', 'Space']);
 const PAUSE = new Set(['KeyP', 'Escape']);
@@ -17,6 +18,7 @@ const MUTE = new Set(['KeyM']);
 const NEW = new Set(['KeyN']);
 const PUNCH = new Set(['KeyF']);
 const RESTART = new Set(['KeyR']);
+const HORN = new Set(['KeyH']);
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -43,6 +45,8 @@ export function createInput(canvas) {
       if (!event.repeat) actions |= ACTION_PUNCH;
     } else if (RESTART.has(event.code)) {
       if (!event.repeat) actions |= ACTION_RESTART;
+    } else if (HORN.has(event.code)) {
+      actions |= ACTION_HORN; // held or tapped, the horn may sound again at once
     }
     keys.add(event.code);
   }

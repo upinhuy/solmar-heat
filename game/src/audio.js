@@ -114,6 +114,11 @@ export function createAudio() {
     rivalShot() {
       noiseBurst(0.08, 4200, 0.28);
     },
+    /** A car horn: two square tones a third apart, short and blunt. */
+    horn() {
+      tone(370, 0.16, 'square', 0.12);
+      tone(466, 0.16, 'square', 0.1);
+    },
     /** The engine hum: a sawtooth whose pitch and loudness follow speed. Call every frame. */
     engine(speedRatio) {
       if (!ensure()) return;
