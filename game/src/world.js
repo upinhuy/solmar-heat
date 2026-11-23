@@ -1,8 +1,10 @@
 // The city of Solmar: an 8x8 grid of streets, blocks full of buildings, park plazas with
 // fountains, street props, and a marina along the south shore — a boardwalk, a pier and
-// moored boats on the water. Plus the helpers the rest of the game uses to ask the city
-// questions (is this a road? does this circle hit a building? where is the nearest street?).
-// Nothing here draws or listens to input.
+// moored boats on the water. The south-east blocks are the industrial port: concrete yards
+// stacked with shipping containers under gantry cranes. A distant skyline of towers rings
+// the north and east edges, beyond the streets. Plus the helpers the rest of the game uses
+// to ask the city questions (is this a road? does this circle hit a building? where is the
+// nearest street?). Nothing here draws or listens to input.
 import { AWNING_COLORS, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGN_NAMES, WORLD } from './config.js';
 import { clamp, intRange, pick, range } from './random.js';
 
@@ -16,6 +18,7 @@ export const WATER_Y = 2320;
 export const MARINA = { x: 1950, y: 2250 };
 export const PIER = { x: 1915, w: 42, from: 2296, to: 2392 };
 export const SHOWROOM_SPOT = { x: 1650, y: 2296, angle: 0 }; // where the finale's car waits
+export const PORT_SPOT = { x: 1990, y: 1950, angle: Math.PI / 2 }; // the port job's truck, kerbside in the dock district
 
 export function isOnRoad(x, y) {
   const half = ROAD_WIDTH / 2;
@@ -108,6 +111,9 @@ export function createCity(random) {
   const fountains = []; // one at the heart of every park plaza
   const boats = [];
   const buoys = []; // channel markers bobbing on the marina water
+  const yards = []; // industrial port: concrete slabs under the container stacks
+  const cranes = []; // industrial port: gantry cranes straddling the yards
+  const skyline = []; // distant towers along the north and east edges, outside the streets
   const half = ROAD_WIDTH / 2;
   // One building per block, inset from the streets, with a roof colour and a height for shading.
   for (let ix = 0; ix < 7; ix += 1) {
@@ -116,6 +122,41 @@ export function createCity(random) {
       const by = ROADS[iy] + half + 18;
       const bw = ROAD_GAP - ROAD_WIDTH - 36;
       const bh = ROAD_GAP - ROAD_WIDTH - 36;
+      // The south-east blocks are the industrial port: a concrete yard, stacks of
+      // shipping containers (solid — they live in the buildings list and collide like
+      // buildings do), a gantry crane over most yards, dock clutter at the edges.
+      if (ix >= 5 && iy >= 5) {
+        yards.push({ x: bx, y: by, w: bw, h: bh });
+        const stacks = intRange(random, 4, 6);
+        for (let s = 0; s < stacks; s += 1) {
+          const horizontal = random() < 0.5;
+          const cw = horizontal ? 62 : 26;
+          const ch = horizontal ? 26 : 62;
+          const color = pick(random, COLORS.container);
+          buildings.push({
+            x: bx + 14 + random() * (bw - cw - 28),
+            y: by + 14 + random() * (bh - ch - 28),
+            w: cw,
+            h: ch,
+            color,
+            roof: color,
+            height: 9 + random() * 5,
+            sign: null,
+            awning: null,
+            gear: 0,
+            tank: false,
+            kind: 'container',
+            stack: random() < 0.4 ? 2 : 1, // some stacks stand two boxes high
+          });
+        }
+        if (random() < 0.85) {
+          cranes.push({ x: bx + bw / 2, y: by + bh / 2, span: Math.min(bw - 26, 196), angle: random() < 0.5 ? 0 : Math.PI / 2 });
+        }
+        for (let t = 0; t < 2; t += 1) {
+          props.push({ x: bx + random() * (bw - 24), y: by + bh - 20, w: 22, h: 14, kind: 'crate', angle: random() * 0.6 - 0.3 });
+        }
+        continue;
+      }
       // Some blocks are park plazas instead of buildings: trees, a fountain, benches.
       if (random() < 0.16) {
         for (let t = 0; t < 8; t += 1) {
@@ -207,7 +248,22 @@ export function createCity(random) {
   for (let i = 0; i < 5; i += 1) {
     buoys.push({ x: 340 + i * 430 + range(random, -50, 50), y: 2376 + range(random, -10, 14), phase: random() * Math.PI * 2 });
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys };
+  // The distant skyline: towers shoulder to shoulder along the north edge and down the
+  // east edge, beyond the street grid — the bigger city that Solmar is a port of. The
+  // renderer draws them flat and dark, with a scatter of lit windows.
+  let sx = -12;
+  while (sx < WORLD) {
+    const w = 46 + random() * 60;
+    skyline.push({ x: sx, y: 0, w, h: 55 + random() * 70, side: 'north' });
+    sx += w + 4 + random() * 22;
+  }
+  let sy = 40;
+  while (sy < WORLD - 260) {
+    const w = 46 + random() * 60;
+    skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
+    sy += w + 4 + random() * 22;
+  }
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

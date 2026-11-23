@@ -2,17 +2,22 @@
 // camera follows the player across the 2400x2400 city, and a 1280x720 window of the world is
 // fitted to the canvas, letterboxed. The city reads in layers: grass and sidewalks with
 // pavement joints, streets with wheel tracks, kerb lines, centrelines and zebra crossings,
-// park plazas with fountains, the marina boardwalk and its animated water, then buildings
-// drawn as low extruded blocks — a parapet roof with clutter on top, a windowed south face
-// below it, neon signboards and striped awnings on the commercial blocks. Cars are drawn
-// per body shape — sedan, hatchback, pickup, van, sport — with shading, glass reflections,
-// wheels, mirrors and lights; taxis wear a roof sign, police a flashing light bar. At night
-// the street lamps pool light on the asphalt, neon spills onto the sidewalks, windows light
-// up floor by floor and every car throws a headlight cone. Canvas shapes and text, no assets.
+// park plazas with fountains, the marina boardwalk and its animated water, the industrial
+// port's concrete yards, container stacks and gantry cranes in the south-east, a distant
+// skyline ringing the north and east edges, then buildings drawn as low extruded blocks —
+// a parapet roof with clutter on top, a windowed south face below it, neon signboards and
+// striped awnings on the commercial blocks. Cars are drawn per body shape — sedan,
+// hatchback, pickup, van, sport, limousine and motorcycle — with shading, glass
+// reflections, wheels, mirrors and lights; taxis wear a roof sign, police a flashing
+// light bar. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
+// the view; at night the street lamps pool light on the asphalt, neon spills onto the
+// sidewalks and reflects in wet streaks, windows light up floor by floor and every car
+// throws a headlight cone. When it rains the streets shine and the neon doubles. Canvas
+// shapes and text, no assets.
 import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
 import { BOARDWALK_Y, PIER, ROADS, WATER_Y } from './world.js';
-import { hash01 } from './random.js';
+import { hash01, lerp } from './random.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -43,6 +48,16 @@ function clockText(clockMinutes) {
   const h = Math.floor(hourOf(clockMinutes));
   const m = Math.floor(clockMinutes % 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** 0 in full day, 1 at the heart of dawn or dusk; drives the warm sky wash. */
+function duskGlow(clockMinutes) {
+  const h = hourOf(clockMinutes);
+  if (h >= 16.5 && h < 18) return (h - 16.5) / 1.5;
+  if (h >= 18 && h < 19.5) return 1 - (h - 18) / 1.5;
+  if (h >= 5 && h < 6.5) return (h - 5) / 1.5;
+  if (h >= 6.5 && h < 8) return 1 - (h - 6.5) / 1.5;
+  return 0;
 }
 
 /** Darken (f < 1) or lighten (f > 1) a #rrggbb colour, returned as rgb(). */
@@ -136,6 +151,33 @@ export function createRenderer(canvas) {
     // Mown stripes so the grass is not one flat colour.
     context.fillStyle = COLORS.grassDark;
     for (let y = 0; y < WORLD; y += 120) context.fillRect(cam.x, cam.y + y, WORLD, 60);
+    // The distant skyline: flat dark towers along the north and east edges, their
+    // windows pricking lit as the day darkens. Pure backdrop — the city beyond Solmar.
+    for (const t of city.skyline || []) {
+      const tx = t.side === 'north' ? cam.x + t.x : cam.x + t.x - t.h;
+      const ty = t.side === 'north' ? cam.y : cam.y + t.y;
+      const tw = t.side === 'north' ? t.w : t.h;
+      const th = t.side === 'north' ? t.h : t.w;
+      if (tx > vis.x1 || tx + tw < vis.x0 || ty > vis.y1 || ty + th < vis.y0) continue;
+      context.fillStyle = COLORS.skyline;
+      context.globalAlpha = 0.88 + dark * 0.12;
+      context.fillRect(tx, ty, tw, th);
+      context.globalAlpha = 1;
+      if (dark > 0.1) {
+        context.fillStyle = COLORS.skylineLit;
+        const cols = Math.max(2, Math.floor(tw / 13));
+        const rowsN = Math.max(2, Math.floor(th / 15));
+        for (let cx2 = 0; cx2 < cols; cx2 += 1) {
+          for (let ry2 = 0; ry2 < rowsN; ry2 += 1) {
+            if (hash01(t.x + cx2 * 71, t.y + ry2 * 97) < 0.16 + dark * 0.3) {
+              context.globalAlpha = 0.5 + dark * 0.5;
+              context.fillRect(tx + 4 + cx2 * ((tw - 8) / cols), ty + 5 + ry2 * ((th - 9) / rowsN), 3.5, 4.5);
+            }
+          }
+        }
+        context.globalAlpha = 1;
+      }
+    }
     // Sidewalks around every block, with pavement joints so the concrete reads as slabs.
     const blockSize = ROAD_GAP - ROAD_WIDTH;
     for (let ix = 0; ix < 7; ix += 1) {
@@ -158,6 +200,22 @@ export function createRenderer(canvas) {
     context.fillStyle = COLORS.plaza;
     for (const f of city.fountains) {
       context.fillRect(cam.x + f.x - 62, cam.y + f.y - 62, 124, 124);
+    }
+    // The port yards: concrete slabs with painted bay lines under the container stacks.
+    for (const yard of city.yards || []) {
+      if (yard.x > vis.x1 || yard.x + yard.w < vis.x0 || yard.y > vis.y1 || yard.y + yard.h < vis.y0) continue;
+      context.fillStyle = COLORS.yard;
+      context.fillRect(cam.x + yard.x, cam.y + yard.y, yard.w, yard.h);
+      context.strokeStyle = COLORS.yardLine;
+      context.globalAlpha = 0.35;
+      context.lineWidth = 2;
+      for (let ly = yard.y + 34; ly < yard.y + yard.h - 10; ly += 34) {
+        context.beginPath();
+        context.moveTo(cam.x + yard.x + 8, cam.y + ly);
+        context.lineTo(cam.x + yard.x + yard.w - 8, cam.y + ly);
+        context.stroke();
+      }
+      context.globalAlpha = 1;
     }
     // Roads: asphalt, darker wheel tracks where the tyres run, pale kerb edges.
     context.fillStyle = COLORS.road;
@@ -202,6 +260,18 @@ export function createRenderer(canvas) {
         context.arc(cam.x + d, cam.y + r + off, 5, 0, Math.PI * 2);
         context.fill();
       }
+    }
+    // Wet streets: after dark, and whenever it rains, the asphalt takes a pale sheen —
+    // the base the lamp pools and neon reflections sit on.
+    const wet = Math.max(game.weather && game.weather.rain > 0 ? 0.9 : 0, dark > 0.2 ? 0.55 : 0);
+    if (wet > 0) {
+      context.fillStyle = COLORS.wetSheen;
+      context.globalAlpha = wet;
+      for (const r of ROADS) {
+        context.fillRect(cam.x + r - ROAD_WIDTH / 2, cam.y, ROAD_WIDTH, WORLD);
+        context.fillRect(cam.x, cam.y + r - ROAD_WIDTH / 2, WORLD, ROAD_WIDTH);
+      }
+      context.globalAlpha = 1;
     }
     // Zebra crossings at the intersections in view.
     context.fillStyle = COLORS.crosswalk;
@@ -332,12 +402,56 @@ export function createRenderer(canvas) {
     }
     text('HIDEOUT', cam.x + HIDEOUT.x, cam.y + HIDEOUT.y + 4, 13, '#f2c230', 'center', 700);
     // Buildings as low extruded blocks: a soft shadow, a windowed south face, then the
-    // parapet roof with its clutter. Windows light up as the day darkens.
+    // parapet roof with its clutter. Windows light up as the day darkens. The port's
+    // containers take a branch of their own: corrugated boxes in harbour colours.
     for (const b of city.buildings) {
       if (b.x > vis.x1 || b.x + b.w < vis.x0 || b.y > vis.y1 + 40 || b.y + b.h + 24 < vis.y0) continue;
       const bx = cam.x + b.x;
       const by = cam.y + b.y;
       const faceH = faceHeight(b);
+      if (b.kind === 'container') {
+        const hex = b.color.startsWith('#') ? b.color : '#888888';
+        const lift = b.stack === 2 ? 6 : 2;
+        // A two-layer shadow, longer for the two-high stacks.
+        context.fillStyle = 'rgba(0,0,0,0.13)';
+        context.fillRect(bx + 12, by + 11 + lift, b.w, b.h);
+        context.fillStyle = 'rgba(0,0,0,0.24)';
+        context.fillRect(bx + 6, by + 5 + lift, b.w, b.h);
+        // The box: a darker rim (the sides) around a sunlit top face.
+        context.fillStyle = shade(hex, 0.7);
+        context.fillRect(bx, by, b.w, b.h);
+        context.fillStyle = shade(hex, 1.1);
+        context.fillRect(bx + 3, by + 3, b.w - 6, b.h - 6);
+        // Corrugation ribs across the top.
+        context.strokeStyle = 'rgba(0,0,0,0.16)';
+        context.lineWidth = 1.5;
+        context.beginPath();
+        if (b.w >= b.h) {
+          for (let rx = bx + 8; rx < bx + b.w - 4; rx += 7) {
+            context.moveTo(rx, by + 4);
+            context.lineTo(rx, by + b.h - 4);
+          }
+        } else {
+          for (let ry = by + 8; ry < by + b.h - 4; ry += 7) {
+            context.moveTo(bx + 4, ry);
+            context.lineTo(bx + b.w - 4, ry);
+          }
+        }
+        context.stroke();
+        // A second box on top of the tall stacks, and the harbour stencil at the door end.
+        if (b.stack === 2) {
+          context.fillStyle = shade(hex, 1.22);
+          context.fillRect(bx + 6, by - 3, b.w - 12, b.h - 5);
+          context.strokeStyle = 'rgba(0,0,0,0.22)';
+          context.lineWidth = 1.5;
+          context.strokeRect(bx + 6, by - 3, b.w - 12, b.h - 5);
+        }
+        if (b.w >= 50) text('SOLMAR', bx + 6, by + b.h - 5, 7, 'rgba(255,255,255,0.55)', 'left', 700);
+        continue;
+      }
+      // A soft shadow in two layers: a wide faint throw under a tighter darker one.
+      context.fillStyle = 'rgba(0,0,0,0.10)';
+      context.fillRect(bx + 13, by + faceH + 14, b.w, b.h);
       context.fillStyle = 'rgba(0,0,0,0.22)';
       context.fillRect(bx + 8, by + faceH + 9, b.w, b.h);
       // The south face and its window grid.
@@ -405,6 +519,36 @@ export function createRenderer(canvas) {
       context.fillStyle = 'rgba(255,255,255,0.10)';
       context.fillRect(bx + 7, by + 7, b.w - 14, 3);
       if (b.sign) drawSign(b, bx, by, dark);
+    }
+    // Gantry cranes over the port yards: two legs, a long beam with a sunlit top edge, a
+    // trolley, and a cable with a hook block hanging over the stacks.
+    for (const crane of city.cranes || []) {
+      if (crane.x + crane.span < vis.x0 || crane.x - crane.span > vis.x1 || crane.y + 40 < vis.y0 || crane.y - 40 > vis.y1) continue;
+      context.save();
+      context.translate(cam.x + crane.x, cam.y + crane.y);
+      context.rotate(crane.angle);
+      const s = crane.span / 2;
+      context.fillStyle = 'rgba(0,0,0,0.16)';
+      context.fillRect(-s + 9, 0, crane.span, 9);
+      context.fillStyle = COLORS.craneDark;
+      context.fillRect(-s - 3, -7, 7, 14);
+      context.fillRect(s - 4, -7, 7, 14);
+      context.fillStyle = '#39424e';
+      context.fillRect(-s - 8, -4.5, crane.span + 16, 9);
+      context.fillStyle = 'rgba(255,255,255,0.14)';
+      context.fillRect(-s - 8, -4.5, crane.span + 16, 3);
+      const trolley = (hash01(crane.x, crane.y) - 0.5) * crane.span * 0.6;
+      context.fillStyle = '#c97e2c';
+      context.fillRect(trolley - 5, -5, 10, 10);
+      context.strokeStyle = 'rgba(20,22,26,0.8)';
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.moveTo(trolley, 4);
+      context.lineTo(trolley, 17);
+      context.stroke();
+      context.fillStyle = '#232a33';
+      context.fillRect(trolley - 4, 17, 8, 5);
+      context.restore();
     }
     // Fountains: a stone ring, blue water with drifting ripple rings, a white spray heart.
     for (const f of city.fountains) {
@@ -540,11 +684,52 @@ export function createRenderer(canvas) {
     context.save();
     context.translate(cam.x + car.x, cam.y + car.y);
     context.rotate(car.angle);
-    // Ground shadow.
+    // Ground shadow, in two layers so its edge falls off softly.
+    context.fillStyle = 'rgba(0,0,0,0.13)';
+    context.beginPath();
+    context.ellipse(3, 4, len / 2 + 6, wid / 2 + 5, 0, 0, Math.PI * 2);
+    context.fill();
     context.fillStyle = 'rgba(0,0,0,0.30)';
     context.beginPath();
     context.ellipse(2, 3, len / 2 + 2, wid / 2 + 2, 0, 0, Math.PI * 2);
     context.fill();
+    if (car.shape === 'moto') {
+      // A motorcycle: a wheel at each end of a slim frame, the rider leaning over it.
+      context.fillStyle = '#14161a';
+      context.fillRect(len / 2 - 6, -2.5, 8, 5);
+      context.fillRect(-len / 2 - 2, -2.5, 8, 5);
+      context.fillStyle = car.color;
+      rr(-len / 2 + 3, -wid / 2 + 2, len - 6, wid - 4, 4);
+      context.fill();
+      context.fillStyle = 'rgba(0,0,0,0.25)';
+      context.fillRect(-len / 2 + 3, -wid / 2 + 2, 7, wid - 4);
+      context.fillStyle = 'rgba(255,255,255,0.14)';
+      context.fillRect(2, -wid / 2 + 3, len / 2 - 6, 2.5);
+      context.fillStyle = car.riderShirt || '#7a9cc9';
+      context.beginPath();
+      context.ellipse(-1, 0, 9, 6.5, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = car.riderHelmet || '#d8d8d8';
+      context.beginPath();
+      context.arc(3, 0, 4.6, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = 'rgba(20,30,44,0.85)';
+      context.fillRect(6.2, -3, 2.2, 6);
+      context.fillStyle = '#ffe9a8';
+      context.fillRect(len / 2 - 2, -2, 3, 4);
+      if (car.brake) {
+        context.fillStyle = '#ff5040';
+        context.fillRect(-len / 2 - 1, -2, 3, 4);
+      }
+      if (car.missionCar) {
+        context.strokeStyle = COLORS.mission;
+        context.lineWidth = 3;
+        rr(-len / 2 - 2, -wid / 2 - 2, len + 4, wid + 4, 7);
+        context.stroke();
+      }
+      context.restore();
+      return;
+    }
     // Wheels with pale hubs.
     context.fillStyle = '#14161a';
     const wx = len / 2 - 11;
@@ -622,6 +807,19 @@ export function createRenderer(canvas) {
       glint(-len * 0.3, len * 0.48);
       context.fillStyle = '#dfe8f2';
       context.fillRect(len * 0.18, -wid / 2 + 3, 3, wid - 6);
+    } else if (car.shape === 'limo') {
+      // A long saloon: glass along most of its length, a pale roof band down the middle,
+      // a chrome line and two extra door seams.
+      context.fillStyle = glass;
+      context.fillRect(-len * 0.34, -wid / 2 + 3, len * 0.62, wid - 6);
+      glint(-len * 0.34, len * 0.62);
+      context.fillStyle = 'rgba(232,232,232,0.8)';
+      context.fillRect(-len * 0.34, -2, len * 0.62, 4);
+      context.fillStyle = 'rgba(255,255,255,0.28)';
+      context.fillRect(-len / 2 + 2, wid / 2 - 4, len - 4, 2);
+      context.fillStyle = 'rgba(0,0,0,0.22)';
+      context.fillRect(-len * 0.05, -wid / 2 + 2, 1.5, wid - 4);
+      context.fillRect(len * 0.18, -wid / 2 + 2, 1.5, wid - 4);
     } else {
       // Sedan: cabin amidships, glass front and back, door seams.
       context.fillStyle = glass;
@@ -717,6 +915,10 @@ export function createRenderer(canvas) {
       context.rotate(Math.PI / 2);
       context.globalAlpha = Math.max(0.25, Math.min(1, ped.down));
     } else {
+      context.fillStyle = 'rgba(0,0,0,0.10)';
+      context.beginPath();
+      context.ellipse(2, 6, 11, 6.5, 0, 0, Math.PI * 2);
+      context.fill();
       context.fillStyle = 'rgba(0,0,0,0.22)';
       context.beginPath();
       context.ellipse(1, 5, 8, 5, 0, 0, Math.PI * 2);
@@ -744,6 +946,16 @@ export function createRenderer(canvas) {
     context.beginPath();
     context.arc(hx - Math.cos(ped.angle) * 1.2, hy - Math.sin(ped.angle) * 1.2, 4.4, 0, Math.PI * 2);
     context.fill();
+    // A cap, on the heads that wear one: a dome and a brim toward the facing.
+    if (ped.cap) {
+      context.fillStyle = ped.cap;
+      context.beginPath();
+      context.arc(hx, hy, 4.9, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      context.arc(hx + Math.cos(ped.angle) * 3.6, hy + Math.sin(ped.angle) * 3.6, 2.6, 0, Math.PI * 2);
+      context.fill();
+    }
     context.restore();
     context.globalAlpha = 1;
   }
@@ -756,6 +968,10 @@ export function createRenderer(canvas) {
       context.restore();
       return;
     }
+    context.fillStyle = 'rgba(0,0,0,0.12)';
+    context.beginPath();
+    context.ellipse(2, 7, 13, 7.5, 0, 0, Math.PI * 2);
+    context.fill();
     context.fillStyle = 'rgba(0,0,0,0.25)';
     context.beginPath();
     context.ellipse(1, 6, 10, 6, 0, 0, Math.PI * 2);
@@ -845,13 +1061,36 @@ export function createRenderer(canvas) {
       context.arc(cam.x + b.x, cam.y + b.y, 3, 0, Math.PI * 2);
       context.fill();
     }
-    // Particles.
+    // Particles. Rain falls as slanted streaks, a muzzle flash as a spiked glare, and
+    // everything else — smoke, sparks, spray, casings — as a soft dot.
     for (const p of game.particles) {
       context.globalAlpha = Math.max(0, p.life / p.maxLife);
-      context.fillStyle = p.color;
-      context.beginPath();
-      context.arc(cam.x + p.x, cam.y + p.y, p.size, 0, Math.PI * 2);
-      context.fill();
+      if (p.kind === 'rain') {
+        context.strokeStyle = p.color;
+        context.lineWidth = 1.4;
+        context.beginPath();
+        context.moveTo(cam.x + p.x, cam.y + p.y);
+        context.lineTo(cam.x + p.x - 3, cam.y + p.y + 11);
+        context.stroke();
+      } else if (p.kind === 'flash') {
+        context.fillStyle = p.color;
+        context.beginPath();
+        context.arc(cam.x + p.x, cam.y + p.y, p.size * 0.55, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = p.color;
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(cam.x + p.x - p.size, cam.y + p.y);
+        context.lineTo(cam.x + p.x + p.size, cam.y + p.y);
+        context.moveTo(cam.x + p.x, cam.y + p.y - p.size);
+        context.lineTo(cam.x + p.x, cam.y + p.y + p.size);
+        context.stroke();
+      } else {
+        context.fillStyle = p.color;
+        context.beginPath();
+        context.arc(cam.x + p.x, cam.y + p.y, p.size, 0, Math.PI * 2);
+        context.fill();
+      }
     }
     context.globalAlpha = 1;
     drawPlayer(game, cam);
@@ -862,6 +1101,17 @@ export function createRenderer(canvas) {
     const aMarker = activityMarker(game);
     if (aMarker) {
       drawMarker(cam.x + aMarker.x, cam.y + aMarker.y, activity.kind === 'race' ? COLORS.race : COLORS.courier, game.time + 1);
+    }
+    // A dawn or dusk wash: warm light spilling down from the top of the view, its
+    // strength easing with the hour (lerp keeps the shoulder of the glow soft).
+    const glow = duskGlow(game.clock);
+    if (glow > 0.01) {
+      const warm = lerp(0.05, 0.22, glow);
+      const grad = context.createLinearGradient(0, 0, 0, 560);
+      grad.addColorStop(0, `rgba(255,150,70,${warm})`);
+      grad.addColorStop(1, 'rgba(255,150,70,0)');
+      context.fillStyle = grad;
+      context.fillRect(0, 0, VIEW_W, VIEW_H);
     }
     // Day lighting: a dusk or night tint over the whole view.
     if (dark > 0) {
@@ -891,7 +1141,9 @@ export function createRenderer(canvas) {
       context.arc(cam.x + l.x, cam.y + l.y, 14, 0, Math.PI * 2);
       context.fill();
     }
-    // Neon signs spill their colour onto the sidewalk below the face.
+    // Neon signs spill their colour onto the sidewalk below the face, and — on wet
+    // ground, after dark or in the rain — smear a long reflection streak below that.
+    const rainBoost = game.weather && game.weather.rain > 0 ? 1 : 0;
     for (const b of game.city.buildings) {
       if (!b.sign) continue;
       if (b.x > vis.x1 || b.x + b.w < vis.x0 || b.y > vis.y1 || b.y + b.h < vis.y0) continue;
@@ -903,6 +1155,10 @@ export function createRenderer(canvas) {
       context.globalAlpha = 0.10;
       context.beginPath();
       context.arc(cam.x + b.x + b.w / 2, cam.y + b.y + b.h, 15, 0, Math.PI * 2);
+      context.fill();
+      context.globalAlpha = 0.06 + 0.05 * dark + rainBoost * 0.06;
+      context.beginPath();
+      context.ellipse(cam.x + b.x + b.w / 2, cam.y + b.y + b.h + faceHeight(b) + 30 + rainBoost * 16, b.w * 0.3, 17 + rainBoost * 13, 0, 0, Math.PI * 2);
       context.fill();
       context.globalAlpha = 1;
     }
@@ -972,6 +1228,11 @@ export function createRenderer(canvas) {
       context.moveTo(x0, y0 + r * scale);
       context.lineTo(x0 + MINI, y0 + r * scale);
       context.stroke();
+    }
+    // The port yards in the south-east, grey against the green.
+    context.fillStyle = COLORS.yard;
+    for (const yard of game.city.yards || []) {
+      context.fillRect(x0 + yard.x * scale, y0 + yard.y * scale, yard.w * scale, yard.h * scale);
     }
     // Hideout and the side-activity starts.
     context.fillStyle = COLORS.mission;
@@ -1118,9 +1379,13 @@ export function createRenderer(canvas) {
   function cameraFor(game) {
     const cx = game.player.x - VIEW_W / 2;
     const cy = game.player.y - VIEW_H / 2;
+    // A hard crash kicks the camera: a fast, small jitter that dies with game.shake.
+    const shake = game.shake || 0;
+    const jx = shake > 0 ? Math.sin(game.time * 91) * shake : 0;
+    const jy = shake > 0 ? Math.cos(game.time * 113) * shake * 0.7 : 0;
     return {
-      x: -Math.max(0, Math.min(WORLD - VIEW_W, cx)),
-      y: -Math.max(0, Math.min(WORLD - VIEW_H, cy)),
+      x: -Math.max(0, Math.min(WORLD - VIEW_W, cx)) + jx,
+      y: -Math.max(0, Math.min(WORLD - VIEW_H, cy)) + jy,
     };
   }
 
@@ -1146,7 +1411,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Ten story missions, plus street races and courier runs on the side.',
+        'Twelve story missions, plus street races and courier runs on the side.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',
@@ -1169,7 +1434,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_DONE) {
       const stats = game.missions.stats;
       drawPanel('SOLMAR IS YOURS', [
-        'All ten jobs done. Rico Vega owns this city now.',
+        'All twelve jobs done. Rico Vega owns this city now.',
         `Final cash: $${game.cash.toLocaleString('en-US')} · Races won: ${stats.races} · Deliveries: ${stats.deliveries}`,
       ], 'Press Enter to keep roaming free', '#7fd069');
     }

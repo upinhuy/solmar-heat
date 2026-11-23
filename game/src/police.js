@@ -3,7 +3,9 @@
 // when the player stays out of sight. The chase is smarter than a beeline: cars aim where
 // the player is heading, not where he is, fresh units prefer to appear ahead of a driver,
 // and at four stars the PD parks roadblocks across the road ahead — two cars, and three
-// at the full five stars. Crimes raise the stars; hiding lowers them.
+// at the full five stars. At five stars, once you have blown through one roadblock, the
+// PD throws a second one across your road while the heat lasts. Crimes raise the stars;
+// hiding lowers them.
 import { COP, WANTED_MAX, WORLD } from './config.js';
 import { angleDelta, clamp, distance } from './random.js';
 import { driveCar, makeCar } from './vehicles.js';
@@ -19,6 +21,7 @@ export function createPolice() {
     arrestTimer: 0,
     sirenOn: false,
     roadblockSet: false, // a roadblock is out for the current heat level
+    roadblockWaves: 0, // roadblocks thrown at this heat so far (a second wave only at 5 stars)
   };
 }
 
@@ -101,6 +104,7 @@ function setRoadblock(game) {
     police.cars.push(car);
   }
   police.roadblockSet = true;
+  police.roadblockWaves += 1;
 }
 
 /**
@@ -120,9 +124,23 @@ export function updatePolice(game, dt, events) {
     police.cops = police.cops.filter((c) => distance(c.x, c.y, player.x, player.y) < COP.despawnDistance);
     police.sirenOn = false;
     police.roadblockSet = false;
+    police.roadblockWaves = 0;
     return null;
   }
-  if (police.wanted < COP.roadblockMinStars) police.roadblockSet = false;
+  if (police.wanted < COP.roadblockMinStars) {
+    police.roadblockSet = false;
+    police.roadblockWaves = 0;
+  }
+  // Five stars, and every roadblock car has already broken ranks to chase: the PD gets
+  // one more throw of the barricade across the road ahead.
+  if (
+    police.wanted >= WANTED_MAX
+    && police.roadblockSet
+    && police.roadblockWaves < 2
+    && !police.cars.some((c) => c.roadblock)
+  ) {
+    police.roadblockSet = false;
+  }
 
   // Spawn pressure scales with stars: more cars, more foot cops, and a roadblock at 4+.
   const wantCars = Math.min(police.wanted, 4) + (police.wanted >= COP.roadblockMinStars ? 2 : 0);

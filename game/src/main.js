@@ -2,9 +2,9 @@
 // (several in a slow frame, none in a fast one), and the renderer paints what is there. The
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
-// ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown (with
-// &seed=N) stages that scene instead of running the loop, paints it twice and sets
-// window.__shotReady for a screenshot.
+// ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown|skyline|
+// rain|port (with &seed=N) stages that scene instead of running the loop, paints it twice
+// and sets window.__shotReady for a screenshot.
 import { STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
 import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
@@ -164,14 +164,17 @@ function runGame() {
         stepActions &= ~(ACTION_PUNCH | ACTION_ENTER | ACTION_HORN);
         accumulator -= STEP;
         playEvents(result.events);
-        // Engine and siren follow the game every step.
+        // Engine and siren follow the game every step; a motorcycle's engine sits a
+        // third higher than a car's, and the rain wash follows the weather.
         if (game.player.inCar && game.player.car) {
           const car = game.player.car;
-          audio.engine(Math.min(1, Math.hypot(car.vx, car.vy) / 540));
+          const ratio = Math.min(1, Math.hypot(car.vx, car.vy) / 540);
+          audio.engine(car.shape === 'moto' ? ratio * 1.35 : ratio);
         } else {
           audio.engine(0);
         }
         audio.siren(game.police.sirenOn);
+        audio.rain(game.weather.rain);
         if (result.busted) {
           screen = SCREEN_BUSTED;
           announce('Busted by the Solmar PD.');

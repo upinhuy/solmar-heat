@@ -39,6 +39,11 @@ export function clamp(value, min, max) {
   return value < min ? min : value > max ? max : value;
 }
 
+/** Linear blend from a to b by t in [0, 1]; the renderer eases the sky with it. */
+export function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 /** Shortest signed turn from angle `from` to angle `to`, in radians. */
 export function angleDelta(from, to) {
   let d = (to - from) % (Math.PI * 2);

@@ -1,10 +1,11 @@
 // Cars and people: the player driving, traffic following the streets (and yielding instead
 // of piling up), pedestrians on the sidewalks who scatter when a car comes at them fast,
-// bullets and particles. Cars come in several body shapes — sedan, hatchback, pickup, van
-// and the low sport shape — each with its own size, and the odd yellow taxi among the
-// sedans. Brake lights flare when a car slows hard, and police light bars each flash on
-// their own phase. Physics is simple arcade: accelerate, steer by speed, grip damps
-// sideways slide, buildings stop you with a thud.
+// bullets and particles. Cars come in several body shapes — sedan, hatchback, pickup, van,
+// the low sport shape, a long limousine and a narrow motorcycle with a rider — each with
+// its own size, and the odd yellow taxi among the sedans. Brake lights flare when a car
+// slows hard, and police light bars each flash on their own phase. Physics is simple
+// arcade: accelerate, steer by speed, grip damps sideways slide, buildings stop you with
+// a thud.
 import { CAR, PED_SPEED, PLAYER, TRAFFIC_SPEED, WORLD } from './config.js';
 import { angleDelta, clamp, distance, intRange, pick, range } from './random.js';
 import { gridTarget, hitsBuilding, nearestRoadPoint, parkingSpot, randomRoadPoint, ROADS } from './world.js';
@@ -25,6 +26,8 @@ export const CAR_SHAPES = {
   pickup: { len: 48, wid: 24, radius: 17 },
   van: { len: 56, wid: 26, radius: 19 },
   sport: { len: 44, wid: 23, radius: 16 },
+  limo: { len: 68, wid: 25, radius: 21 },
+  moto: { len: 30, wid: 11, radius: 10 },
 };
 const CIVILIAN_SHAPES = ['sedan', 'sedan', 'hatch', 'hatch', 'pickup', 'van'];
 
@@ -37,6 +40,8 @@ export function makeCar(random, opts) {
   if (!shape) {
     if (kind === 'sport') shape = 'sport';
     else if (kind === 'police' || kind === 'mission') shape = 'sedan';
+    else if (random() < 0.07) shape = 'moto'; // the odd motorcycle weaving through traffic
+    else if (random() < 0.05) shape = 'limo'; // and, rarer still, a limousine
     else shape = pick(random, CIVILIAN_SHAPES);
   }
   const body = CAR_SHAPES[shape];
@@ -61,8 +66,10 @@ export function makeCar(random, opts) {
     police: opts.police || false,
     missionCar: opts.missionCar || false,
     driver: opts.driver || null, // the ped driving a traffic car, if any
+    riderShirt: pick(random, PED_SHIRTS), // a motorcycle's rider, drawn over the bike
+    riderHelmet: pick(random, ['#d8d8d8', '#b8443a', '#2f6fd0', '#14161a']),
     target: null, // traffic: next intersection
-    speedTarget: opts.speedTarget || TRAFFIC_SPEED,
+    speedTarget: opts.speedTarget || (shape === 'moto' ? TRAFFIC_SPEED + 45 : TRAFFIC_SPEED),
     vx: 0,
     vy: 0,
     wrecked: false,
@@ -235,6 +242,7 @@ export function makePed(random, x, y) {
     shirt: pick(random, PED_SHIRTS),
     hair: pick(random, PED_HAIR),
     skin: pick(random, PED_SKIN),
+    cap: random() < 0.3 ? pick(random, ['#b8443a', '#2f6fd0', '#e8b23a', '#d8d8d8']) : null, // some wear a cap over the hair
     target: null,
     down: 0, // >0 while knocked down
     fade: 0,
@@ -343,4 +351,25 @@ export function cashBurst(game, x, y) {
     const s = 40 + game.rng() * 120;
     game.particles.push(makeParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, 0.7, '#7fd069', 3));
   }
+}
+
+/** A gunshot's dressing: one bright flash particle at the muzzle and a brass casing that
+ * pops sideways and falls. The flash is a single frame's glare; the casing lingers. */
+export function muzzleFlash(game, x, y, angle) {
+  const flash = makeParticle(x, y, Math.cos(angle) * 26, Math.sin(angle) * 26, 0.07, '#ffd76a', 6);
+  flash.kind = 'flash';
+  game.particles.push(flash);
+  const side = angle + Math.PI / 2;
+  const casing = makeParticle(x, y, Math.cos(side) * (30 + game.rng() * 30), Math.sin(side) * (30 + game.rng() * 30), 0.5, '#c9a13b', 1.6);
+  casing.grav = 260;
+  game.particles.push(casing);
+}
+
+/** Tyre smoke with a drift's colour: darker and fatter than a handbrake puff, laid down
+ * while the car slides sideways at speed. */
+export function driftSmoke(game, car) {
+  const side = game.rng() < 0.5 ? 1 : -1;
+  const px = car.x - Math.cos(car.angle) * 14 + Math.sin(car.angle) * 9 * side;
+  const py = car.y - Math.sin(car.angle) * 14 - Math.cos(car.angle) * 9 * side;
+  game.particles.push(makeParticle(px, py, range(game.rng, -14, 14), range(game.rng, -14, 14), 0.9, '#8f8a80', 6));
 }

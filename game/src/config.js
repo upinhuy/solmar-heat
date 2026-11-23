@@ -24,9 +24,9 @@ export const PLAYER = {
 // How much of the city is alive when a run starts. More traffic and more pedestrians make
 // the streets feel crowded, which is what the screenshots and the driving both feed on.
 export const CITY_POPULATION = {
-  parkedCars: 14,
-  trafficCars: 18,
-  pedestrians: 38,
+  parkedCars: 15,
+  trafficCars: 20,
+  pedestrians: 42,
 };
 
 export const CAR = {
@@ -92,6 +92,18 @@ export const COLORS = {
   race: '#3fd06a',
   courier: '#39c2d7',
   hostile: '#a03a5e',
+  // The industrial port in the south-east: concrete yards, cargo cranes and stacks of
+  // shipping containers in harbour colours.
+  yard: '#5d5a54',
+  yardLine: '#c9c2a4',
+  crane: '#39424e',
+  craneDark: '#232a33',
+  container: ['#b8443a', '#2c6e9e', '#3f7a4d', '#c97e2c', '#6a6f76', '#7a4d8a'],
+  // The distant skyline that rings the north and east edges, and the wet sheen the roads
+  // take on after dark and in the rain.
+  skyline: '#111a28',
+  skylineLit: '#ffd98a',
+  wetSheen: 'rgba(160,190,230,0.10)',
 };
 
 // Neon signboards on the commercial buildings: names and tube colours, assigned per
@@ -99,6 +111,7 @@ export const COLORS = {
 export const SIGN_NAMES = [
   'HOTEL SOLMAR', 'BAR PALMA', 'CAFE LUNA', 'TACOS RIO', 'CLUB VERTIGO', 'PIZZA NONA',
   'GYM ATLAS', 'BARBER 9', 'HOTEL MAR', 'CLUB NEON', 'SUSHI ONDA', 'DISCO FARO',
+  'CAFE SOL', 'BAR AZUL', 'TALLER RICO', 'MUELLE 12', 'CARGA SUR', 'ASTILLERO',
 ];
 export const NEON_COLORS = ['#ff4d8a', '#39c2d7', '#b46aff', '#ffb84d', '#3fd06a', '#ff6a5e'];
 export const AWNING_COLORS = ['#b8443a', '#2c8a8a', '#c9a13b', '#7a4d8a'];

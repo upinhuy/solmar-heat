@@ -1,7 +1,8 @@
 // Keyboard and pointer input. Held keys give movement and driving; one-shot presses (start,
 // pause, enter a car, mute, restart) are queued as bit flags and taken once by the loop, so
 // a press between two frames is never lost and never counted twice. The canvas also swallows
-// the right-click menu, so a stray click while aiming never interrupts a fight.
+// the right-click menu, so a stray click while aiming never interrupts a fight, and the
+// movement keys keep their default page behaviour (scrolling) suppressed.
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_ENTER = 4;
@@ -29,6 +30,8 @@ export function createInput(canvas) {
   let clicked = false;
 
   function onKeyDown(event) {
+    // The keys that move Rico must never scroll the page out from under the game.
+    if (event.code.startsWith('Arrow') || event.code === 'Space') event.preventDefault();
     if (CONFIRM.has(event.code)) {
       if (!event.repeat) actions |= ACTION_CONFIRM;
       event.preventDefault();

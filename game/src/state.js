@@ -2,17 +2,21 @@
 // loop in main.js and the shot scenes in shots.js both drive the game through stepGame().
 // stepGame returns the events that happened, so the caller can play sounds and announce them.
 // The step also keeps the city breathing: fountain spray arcs over the plazas, dust motes
-// drift through the streets, and a horn blast from the player's car startles the crowd.
+// drift through the streets, a horn blast from the player's car startles the crowd, the
+// weather turns — rain rolls in, slicks the streets and rolls out again — and a hard
+// crash kicks the camera (game.shake, which the renderer reads).
 import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, WORLD } from './config.js';
 import { createRandom, distance, pick } from './random.js';
 import { createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import {
   cashBurst,
+  driftSmoke,
   driveCar,
   exhaust,
   makeCar,
   makePed,
   makeParticle,
+  muzzleFlash,
   sparks,
   tyreSmoke,
   updateBullet,
@@ -94,6 +98,8 @@ export function createGame(seed, saved) {
     cash: 0,
     clock: 9 * 60, // 09:00 in the morning
     time: 0,
+    weather: { rain: 0, nextChange: 75, lock: false }, // rain 0..1; lock pins it (staged scenes)
+    shake: 0, // camera kick from the last hard impact, in world units, decaying
     dialogue: null,
     objectiveText: '',
     audio: null,
@@ -178,6 +184,7 @@ function playerShoot(game, events) {
   const bx = player.x + Math.cos(player.aim) * 20;
   const by = player.y + Math.sin(player.aim) * 20;
   game.bullets.push({ x: bx, y: by, vx: Math.cos(player.aim) * PLAYER.bulletSpeed, vy: Math.sin(player.aim) * PLAYER.bulletSpeed, life: 1.1 });
+  muzzleFlash(game, bx, by, player.aim);
   events.push({ type: 'shot', x: bx, y: by });
 }
 
@@ -215,6 +222,16 @@ export function stepGame(game, input, dt) {
   const player = game.player;
   game.time += dt;
   game.clock += dt * 0.5; // one in-game minute every two real seconds
+  game.shake = Math.max(0, game.shake - dt * 26); // a camera kick settles in about a quarter second
+  // The weather turns on its own clock: dry spells and rain bands alternate, unless a
+  // staged scene has pinned the sky with weather.lock.
+  if (!game.weather.lock) {
+    game.weather.nextChange -= dt;
+    if (game.weather.nextChange <= 0) {
+      game.weather.nextChange = 50 + game.rng() * 70;
+      game.weather.rain = game.weather.rain > 0 ? 0 : 0.65 + game.rng() * 0.35;
+    }
+  }
   player.punchCooldown = Math.max(0, player.punchCooldown - dt);
   player.shootCooldown = Math.max(0, player.shootCooldown - dt);
   player.stealCooldown = Math.max(0, player.stealCooldown - dt);
@@ -251,6 +268,7 @@ export function stepGame(game, input, dt) {
     if (impact > 300) {
       hurtPlayer(game, 8);
       sparks(game, car.x, car.y, 10);
+      game.shake = Math.min(7, impact / 70); // the camera feels a hard hit, then settles
       events.push({ type: 'crash', x: car.x, y: car.y });
     }
     player.x = car.x;
@@ -259,6 +277,10 @@ export function stepGame(game, input, dt) {
     const speed = Math.hypot(car.vx, car.vy);
     if (speed > 60 && game.rng() < dt * 8) exhaust(game, car);
     if (input.handbrake && speed > 200 && game.rng() < dt * 30) tyreSmoke(game, car);
+    // A real drift — fast, with the tail stepped out sideways — lays its own smoke down,
+    // handbrake or not.
+    const sideSlip = Math.abs(-car.vx * Math.sin(car.angle) + car.vy * Math.cos(car.angle));
+    if (speed > 260 && sideSlip > 110 && game.rng() < dt * 26) driftSmoke(game, car);
     // Running a pedestrian over.
     for (const ped of game.peds) {
       if (ped.down > 0) continue;
@@ -396,6 +418,24 @@ export function stepGame(game, input, dt) {
       '#d8cf9a',
       1.8,
     ));
+  }
+  // Rain: fast streaks slanting down around the player, gone in half a second. The
+  // renderer draws kind 'rain' as a line, not a dot, and the wet streets do the rest.
+  if (game.weather.rain > 0) {
+    const drops = Math.round(game.weather.rain * 3);
+    for (let i = 0; i < drops; i += 1) {
+      const drop = makeParticle(
+        player.x + (game.rng() - 0.5) * 1250,
+        player.y + (game.rng() - 0.5) * 750,
+        -55,
+        640,
+        0.55,
+        '#aebfd2',
+        1.4,
+      );
+      drop.kind = 'rain';
+      game.particles.push(drop);
+    }
   }
 
   const busted = updatePolice(game, dt, events);

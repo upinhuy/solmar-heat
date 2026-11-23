@@ -1,12 +1,12 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Ten missions in order, each a small state machine with an objective, a map marker,
+// Twelve missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
 // next. Between story jobs, two repeatable side activities pay cash: street races from the
 // green flag and courier runs from the depot — they run on their own state, alongside
 // whatever the story is doing.
 import { distance } from './random.js';
-import { cashBurst, makeCar, makePed, makeSportCar } from './vehicles.js';
-import { MARINA, SHOWROOM_SPOT, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { cashBurst, makeCar, makePed, makeSportCar, muzzleFlash } from './vehicles.js';
+import { MARINA, PORT_SPOT, SHOWROOM_SPOT, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import { addWanted, setWanted } from './police.js';
 
 export const HIDEOUT = { x: 150, y: 2100 };
@@ -80,6 +80,21 @@ export const MISSIONS = [
     timer: 75,
   },
   {
+    id: 'harbourhaul',
+    name: 'Harbour Haul',
+    reward: 3000,
+    intro: ['Mara Solis: "The dock crews owe me a truck. It sits in the port yards, full of untaxed everything."', '"Take it. The harbour patrol will object — three stars of objection. Bring it home."'],
+    objectives: ['Steal the truck at the port yards', 'Lose the heat — reach 0 stars', 'Drive the truck to the hideout'],
+  },
+  {
+    id: 'dawnrun',
+    name: 'The Dawn Run',
+    reward: 3200,
+    intro: ['Mara Solis: "A limousine, Rico. Black, long, and carrying a man who talks too much for his own good."', '"Pick him up and have him at the marina before the city wakes. One hundred seconds."'],
+    objectives: ['Get in the limousine', 'Reach the marina drop before the clock runs out'],
+    timer: 100,
+  },
+  {
     id: 'finale',
     name: 'One Last Ride',
     reward: 4000,
@@ -142,7 +157,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-9): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-11): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -206,6 +221,17 @@ export function startMission(game, index) {
     m.marker = { x: m.missionCar.x, y: m.missionCar.y };
   } else if (def.id === 'nightrun') {
     m.marker = farPoint(game, player, 700);
+  } else if (def.id === 'harbourhaul') {
+    const truck = makeCar(game.rng, { x: PORT_SPOT.x, y: PORT_SPOT.y, angle: PORT_SPOT.angle, kind: 'mission', shape: 'van', color: '#8a2f4d', missionCar: true });
+    game.cars.push(truck);
+    m.missionCar = truck;
+    m.marker = { x: truck.x, y: truck.y };
+  } else if (def.id === 'dawnrun') {
+    const spot = parkingSpot(game.rng);
+    const limo = makeCar(game.rng, { x: spot.x, y: spot.y, angle: spot.angle, kind: 'mission', shape: 'limo', color: '#14161a', missionCar: true });
+    game.cars.push(limo);
+    m.missionCar = limo;
+    m.marker = { x: limo.x, y: limo.y };
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -274,6 +300,7 @@ export function currentObjective(game) {
   if (def.id === 'tail') text += ` — ${Math.floor(m.progress)}%`;
   if (def.id === 'hot' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'nightrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if (def.id === 'dawnrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'showdown' && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
@@ -325,6 +352,7 @@ function updateHostiles(game, dt, events) {
         life: 0.85,
         hostile: true,
       });
+      muzzleFlash(game, h.x + Math.cos(a) * 16, h.y + Math.sin(a) * 16, a);
       if (d < 420) events.push({ type: 'shot', x: h.x, y: h.y });
     }
   }
@@ -517,6 +545,42 @@ export function updateMissions(game, dt, events) {
         return;
       }
       if (distance(player.x, player.y, m.door.x, m.door.y) < 70) {
+        finishMission(game, events);
+      }
+    }
+  } else if (def.id === 'harbourhaul') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        setWanted(game.police, 3);
+        m.marker = null;
+        say(game, ['Mara Solis: "Three stars and a truck full of evidence. Lose them, then home."']);
+      }
+    } else if (m.step === 1) {
+      if (game.police.wanted === 0) {
+        m.step = 2;
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Clean. Now bring the truck home, gently."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
+    }
+  } else if (def.id === 'dawnrun') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        m.timer = def.timer || 100;
+        setWanted(game.police, 2);
+        m.marker = { x: MARINA.x, y: MARINA.y };
+        say(game, ['Mara Solis: "He is in. One hundred seconds to the marina — make the dawn worth it."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'Too slow — the passenger took a taxi and talked anyway.');
+        return;
+      }
+      if (distance(player.x, player.y, MARINA.x, MARINA.y) < 90 && player.inCar && player.car === m.missionCar) {
         finishMission(game, events);
       }
     }

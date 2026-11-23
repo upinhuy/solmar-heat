@@ -1,15 +1,17 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown. Each one plays the
-// real rules forward from a fresh seeded game for a fixed number of steps, steered by a
-// simple autopilot that drives toward waypoints, so the frame is what a short game really
-// looks like and the same seed always gives the same frame. Each scene also sets the clock,
-// so the light suits the moment: neon night over the title, midday downtown, a golden-hour
-// four-star chase with the roadblock out, and the harbour showdown at dusk.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port.
+// Each one plays the real rules forward from a fresh seeded game for a fixed number of
+// steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
+// a short game really looks like and the same seed always gives the same frame. Each scene
+// also sets the clock, so the light suits the moment: a dusk skyline behind the title, a
+// midday downtown drive, a rainy neon night chase, the port heist at golden hour, and the
+// harbour showdown at dusk.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
-import { missionMarker, startMission } from './missions.js';
+import { HIDEOUT, missionMarker, startMission } from './missions.js';
 import { setWanted } from './police.js';
-import { MARINA, gridTarget, randomRoadPoint } from './world.js';
+import { MARINA, gridTarget, nearestRoadPoint, randomRoadPoint } from './world.js';
+import { makeCar, makePed } from './vehicles.js';
 import { SCREEN_PLAY, SCREEN_TITLE } from './render.js';
 
 const IDLE = { move: { x: 0, y: 0 }, sprint: false, handbrake: false, aim: 0, shoot: false, punch: false, enter: false };
@@ -106,10 +108,96 @@ function walkToward(game, target, seconds) {
 }
 
 /**
- * Set `game` to the named scene (start, drive, chase, mission or showdown; any other name
- * is start) and return the screen to draw over it.
+ * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain or
+ * port; any other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, game) {
+  if (name === 'skyline') {
+    game.clock = 18 * 60 + 35; // dusk: the skyline's windows are lit and the sky is warm
+    noActivities(game);
+    // A slow cruise east along the northernmost street, the tower silhouettes riding
+    // above the car and the title panel over it all.
+    game.player.x = 500;
+    game.player.y = 150;
+    putPlayerInCar(game);
+    const car = game.player.car;
+    car.x = 500;
+    car.y = 150;
+    car.angle = 0;
+    game.player.x = car.x;
+    game.player.y = car.y;
+    game.player.health = 400;
+    const route = [
+      { x: 1300, y: 150 },
+      { x: 2100, y: 150 },
+      { x: 2100, y: 450 },
+      { x: 1300, y: 450 },
+    ];
+    driveRoute(game, routeTarget(game, route), 5);
+    game.dialogue = null;
+    return { screen: SCREEN_TITLE };
+  }
+  if (name === 'rain') {
+    game.clock = 22 * 60; // full night: neon, lamp pools and wet streets
+    game.weather.rain = 1;
+    game.weather.lock = true; // the storm stays for the whole photograph
+    startRun(game);
+    noActivities(game);
+    game.player.x = 1050;
+    game.player.y = 1050;
+    putPlayerInCar(game);
+    game.player.health = 400; // a staged scene: the pursuit lasts the photograph
+    setWanted(game.police, 3); // three stars of company through the wet downtown blocks
+    const route = [
+      { x: 1950, y: 1050 },
+      { x: 1950, y: 1650 },
+      { x: 1050, y: 1650 },
+      { x: 1050, y: 1050 },
+    ];
+    driveRoute(game, routeTarget(game, route), 7);
+    // Scene dressing, as in the chase scene: string the pursuit out behind the player
+    // so the frame reads as a chase, not a convoy stacked on one point.
+    const car = game.player.car;
+    for (const [i, cop] of [...game.police.cars].slice(0, 3).entries()) {
+      cop.x = car.x - Math.cos(car.angle) * (85 + i * 72);
+      cop.y = car.y - Math.sin(car.angle) * (85 + i * 72);
+      const road = nearestRoadPoint(cop.x, cop.y);
+      cop.x = road.x;
+      cop.y = road.y;
+      cop.angle = car.angle;
+      cop.siren = 1;
+    }
+    game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'port') {
+    game.clock = 17 * 60 + 30; // golden hour over the container yards
+    game.missions.index = 9;
+    startMission(game, 9); // Harbour Haul: the truck waits between the stacks
+    noActivities(game);
+    const truck = game.missions.missionCar;
+    game.player.x = truck.x;
+    game.player.y = truck.y;
+    putPlayerInCar(game);
+    game.player.health = 400; // a staged scene: the getaway lasts the photograph
+    // Roll west out of the yards with the harbour patrol converging: cranes, container
+    // stacks and flashing light bars in one frame.
+    driveRoute(game, () => HIDEOUT, 4.5);
+    // Scene dressing: put two harbour-patrol cars on the road behind the truck, lights
+    // flashing — the pursuit the frame is about.
+    const truckNow = game.missions.missionCar;
+    for (let i = 0; i < 2; i += 1) {
+      const cop = makeCar(game.rng, { x: truckNow.x + 130 + i * 78, y: truckNow.y, angle: Math.PI, kind: 'police', color: '#1c2733', police: true });
+      const road = nearestRoadPoint(cop.x, cop.y);
+      cop.x = road.x;
+      cop.y = road.y;
+      cop.angle = Math.PI;
+      cop.siren = 1;
+      game.police.cars.push(cop);
+    }
+    game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
   if (name === 'drive') {
     game.clock = 11 * 60; // late morning, the city at its brightest and busiest
     startRun(game);
@@ -120,6 +208,20 @@ export function stageShot(name, game) {
     game.player.y = 1000;
     putPlayerInCar(game);
     game.player.health = 400; // a staged scene: traffic bumps should not end the drive
+    // Scene dressing: downtown is the busiest part of Solmar — seed extra traffic and
+    // pedestrians into the eastern blocks so the frame feels lived in.
+    for (let i = 0; i < 8; i += 1) {
+      const spot = { x: 820 + game.rng() * 1060, y: 820 + game.rng() * 1060 };
+      const road = nearestRoadPoint(spot.x, spot.y);
+      const extra = makeCar(game.rng, { x: road.x, y: road.y, angle: 0, traffic: true });
+      extra.target = randomRoadPoint(game.rng);
+      game.cars.push(extra);
+    }
+    for (let i = 0; i < 10; i += 1) {
+      const spot = { x: 820 + game.rng() * 1060, y: 820 + game.rng() * 1060 };
+      const road = nearestRoadPoint(spot.x, spot.y);
+      game.peds.push(makePed(game.rng, road.x + 42, road.y + 42));
+    }
     // A loop around the eastern downtown blocks, full of traffic. The waypoints keep clear
     // of the race flag and the courier depot, so no side activity crashes the photograph.
     const route = [

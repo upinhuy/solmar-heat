@@ -10,6 +10,8 @@ export function createAudio() {
   let sirenOsc = null;
   let sirenGain = null;
   let sirenLfo = null;
+  let rainSource = null;
+  let rainGain = null;
   let muted = false;
 
   function ensure() {
@@ -118,6 +120,31 @@ export function createAudio() {
     horn() {
       tone(370, 0.16, 'square', 0.12);
       tone(466, 0.16, 'square', 0.1);
+    },
+    /** Rain on the streets: a looping wash of filtered noise whose loudness follows the
+     * weather's intensity (0 = dry). Call every frame with game.weather.rain. */
+    rain(intensity) {
+      if (intensity <= 0) {
+        if (rainGain) rainGain.gain.setTargetAtTime(0, context.currentTime, 0.4);
+        return;
+      }
+      if (!ensure()) return;
+      if (!rainSource) {
+        rainSource = context.createBufferSource();
+        rainSource.buffer = noiseBuffer;
+        rainSource.loop = true;
+        const filter = context.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1600;
+        filter.Q.value = 0.4;
+        rainGain = context.createGain();
+        rainGain.gain.value = 0;
+        rainSource.connect(filter);
+        filter.connect(rainGain);
+        rainGain.connect(master);
+        rainSource.start();
+      }
+      rainGain.gain.setTargetAtTime(0.028 + intensity * 0.05, context.currentTime, 0.6);
     },
     /** The engine hum: a sawtooth whose pitch and loudness follow speed. Call every frame. */
     engine(speedRatio) {
