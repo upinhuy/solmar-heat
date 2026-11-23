@@ -23,6 +23,12 @@ export function pick(random, list) {
   return list[Math.floor(random() * list.length)];
 }
 
+/** True with probability p: the coin flips the city dressing makes (a taxi here, a
+ * helicopter's approach side there) without open-coding the comparison everywhere. */
+export function chance(random, p) {
+  return random() < p;
+}
+
 /** A shuffled copy of the list (Fisher-Yates with the seeded generator). */
 export function shuffled(random, list) {
   const copy = list.slice();

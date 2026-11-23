@@ -1,10 +1,12 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli.
 // Each one plays the real rules forward from a fresh seeded game for a fixed number of
 // steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
 // a short game really looks like and the same seed always gives the same frame. Each scene
 // also sets the clock, so the light suits the moment: a dusk skyline behind the title, a
-// midday downtown drive, a rainy neon night chase, the port heist at golden hour, and the
-// harbour showdown at dusk.
+// midday downtown drive under the new traffic lights, a rainy neon night chase, the port
+// heist at golden hour, the harbour showdown at dusk — and, for the heli scene, a five-star
+// night pursuit with roadblocks on the ground and the police helicopter's searchlight
+// hunting overhead.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -144,6 +146,40 @@ export function stageShot(name, game) {
     game.dialogue = null;
     return { screen: SCREEN_TITLE };
   }
+  if (name === 'heli') {
+    game.clock = 21 * 60 + 30; // night: light bars, neon and the searchlight own the frame
+    game.weather.rain = 0.7;
+    game.weather.lock = true; // wet streets for the whole photograph
+    startRun(game);
+    noActivities(game);
+    game.player.x = 1050;
+    game.player.y = 1050;
+    putPlayerInCar(game);
+    game.player.health = 500; // a staged scene: the pursuit lasts the photograph
+    setWanted(game.police, 5); // five stars: roadblocks ahead, the helicopter overhead
+    const route = [
+      { x: 1950, y: 1050 },
+      { x: 1950, y: 1650 },
+      { x: 1050, y: 1650 },
+      { x: 1050, y: 1050 },
+    ];
+    driveRoute(game, routeTarget(game, route), 8);
+    // Scene dressing, as in the rain scene: string the pursuit out behind the player so
+    // the frame reads as a chase, not a convoy stacked on one point. Roadblock cars keep
+    // their posts — they are half the point of the picture.
+    const car = game.player.car;
+    for (const [i, cop] of [...game.police.cars].filter((c) => !c.roadblock).slice(0, 3).entries()) {
+      cop.x = car.x - Math.cos(car.angle) * (90 + i * 74);
+      cop.y = car.y - Math.sin(car.angle) * (90 + i * 74);
+      const road = nearestRoadPoint(cop.x, cop.y);
+      cop.x = road.x;
+      cop.y = road.y;
+      cop.angle = car.angle;
+      cop.siren = 1;
+    }
+    game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
   if (name === 'rain') {
     game.clock = 22 * 60; // full night: neon, lamp pools and wet streets
     game.weather.rain = 1;
@@ -188,8 +224,9 @@ export function stageShot(name, game) {
     putPlayerInCar(game);
     game.player.health = 400; // a staged scene: the getaway lasts the photograph
     // Roll west out of the yards with the harbour patrol converging: cranes, container
-    // stacks and flashing light bars in one frame.
-    driveRoute(game, () => HIDEOUT, 4.5);
+    // stacks and flashing light bars in one frame. A shorter roll than it used to be —
+    // the frame stays deep in the yards, where the port reads best.
+    driveRoute(game, () => HIDEOUT, 3.6);
     // Scene dressing: put two harbour-patrol cars on the road behind the truck, lights
     // flashing — the pursuit the frame is about.
     const truckNow = game.missions.missionCar;
@@ -216,28 +253,43 @@ export function stageShot(name, game) {
     putPlayerInCar(game);
     game.player.health = 400; // a staged scene: traffic bumps should not end the drive
     // Scene dressing: downtown is the busiest part of Solmar — seed extra traffic and
-    // pedestrians into the eastern blocks so the frame feels lived in.
-    for (let i = 0; i < 10; i += 1) {
+    // pedestrians into the central blocks so the frame feels lived in. Rush hour is
+    // denser than it used to be: more cars working the loop, more people on the
+    // sidewalks, and the new signals bunching both into queues at the lights.
+    for (let i = 0; i < 18; i += 1) {
       const spot = { x: 820 + game.rng() * 1060, y: 820 + game.rng() * 1060 };
       const road = nearestRoadPoint(spot.x, spot.y);
       const extra = makeCar(game.rng, { x: road.x, y: road.y, angle: 0, traffic: true });
-      extra.target = randomRoadPoint(game.rng);
+      // Their first errand stays downtown too: a citywide target would walk half the
+      // dressing out of the frame before the photograph is taken.
+      const errand = { x: 820 + game.rng() * 1060, y: 820 + game.rng() * 1060 };
+      const errandRoad = nearestRoadPoint(errand.x, errand.y);
+      extra.target = { x: errandRoad.x, y: errandRoad.y };
       game.cars.push(extra);
     }
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 18; i += 1) {
       const spot = { x: 820 + game.rng() * 1060, y: 820 + game.rng() * 1060 };
       const road = nearestRoadPoint(spot.x, spot.y);
       game.peds.push(makePed(game.rng, road.x + 42, road.y + 42));
     }
-    // A loop around the eastern downtown blocks, full of traffic. The waypoints keep clear
-    // of the race flag and the courier depot, so no side activity crashes the photograph.
+    // A tight loop around the central downtown blocks, inside the dressed box, so the
+    // frame ends among the signs and the queues at the lights instead of drifting south
+    // to the shore. The waypoints keep clear of the race flag and the courier depot, so
+    // no side activity crashes the photograph.
     const route = [
       { x: 1050, y: 1050 },
-      { x: 1950, y: 1050 },
-      { x: 1950, y: 1950 },
-      { x: 1050, y: 1950 },
+      { x: 1650, y: 1050 },
+      { x: 1650, y: 1650 },
+      { x: 1050, y: 1650 },
     ];
-    driveRoute(game, routeTarget(game, route), 16);
+    driveRoute(game, routeTarget(game, route), 9);
+    // Scene dressing: the autopilot's loop ploughs through the crowds and the law takes
+    // an interest — clear the accidental heat so the frame is the busy midday street the
+    // scene is about, not a chase.
+    game.police.wanted = 0;
+    game.police.cars = [];
+    game.police.cops = [];
+    game.police.heli = null;
     return { screen: SCREEN_PLAY };
   }
   if (name === 'chase') {

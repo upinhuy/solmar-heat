@@ -10,14 +10,17 @@
 // bins at the kerbs. Cars are drawn per body shape — sedan,
 // hatchback, pickup, van, sport, limousine and motorcycle — with shading, glass
 // reflections, wheels, mirrors and lights; taxis wear a roof sign, police a flashing
-// light bar. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
+// light bar. Traffic signals stand at every intersection, their lamps cycling with the
+// city's clock, and at five stars a police helicopter hangs over the chase — a ground
+// shadow thrown away from the machine, a searchlight pool under it, a blurred rotor
+// disc spinning above a dark PD body. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
 // the view; at night the street lamps pool light on the asphalt, neon spills onto the
 // sidewalks and reflects in wet streaks, windows light up floor by floor and every car
 // throws a headlight cone. When it rains the streets shine and the neon doubles. Canvas
 // shapes and text, no assets.
 import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
-import { BOARDWALK_Y, PIER, ROADS, WATER_Y } from './world.js';
+import { BOARDWALK_Y, PIER, ROADS, WATER_Y, signalPhase } from './world.js';
 import { hash01, lerp } from './random.js';
 
 export const SCREEN_TITLE = 'title';
@@ -141,6 +144,34 @@ export function createRenderer(canvas) {
     context.textBaseline = 'alphabetic';
     context.fillText(label, bx + b.w / 2, y + 10.5);
     context.restore();
+  }
+
+  /** One traffic-signal head: a dark post box with red, amber and green lamps stacked
+   * down it. The lamp for the current phase burns bright (and glows after dark); the
+   * other two sit dim, so a driver can read the light from across the intersection. */
+  function drawSignalHead(x, y, phase, dark) {
+    context.fillStyle = 'rgba(0,0,0,0.25)';
+    context.fillRect(x + 1.5, y + 2.5, 7, 17);
+    context.fillStyle = '#14161a';
+    rr(x, y, 7, 17, 2);
+    context.fill();
+    const lamps = [['#e23b30', 'red'], ['#f2a81d', 'yellow'], ['#3fd06a', 'green']];
+    for (let i = 0; i < 3; i += 1) {
+      const [color, name] = lamps[i];
+      const lit = phase === name;
+      context.save();
+      if (lit && dark > 0.1) {
+        context.shadowColor = color;
+        context.shadowBlur = 7 * dark;
+      }
+      context.fillStyle = color;
+      context.globalAlpha = lit ? 1 : 0.22;
+      context.beginPath();
+      context.arc(x + 3.5, y + 3.5 + i * 5.5, 1.9, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    }
+    context.globalAlpha = 1;
   }
 
   function drawCity(game, cam) {
@@ -287,6 +318,15 @@ export function createRenderer(canvas) {
           context.fillRect(cam.x + rx + half + 3 + (s + 1) * 7, cam.y + ry - half + 6, 4, ROAD_WIDTH - 12);
         }
       }
+    }
+    // Traffic signals at the intersections in view: one head for the north-south flow
+    // on the south-east corner, one for east-west on the south-west, each showing its
+    // direction's current lamp.
+    for (const s of city.signals || []) {
+      if (s.x < vis.x0 || s.x > vis.x1 || s.y < vis.y0 || s.y > vis.y1) continue;
+      const phase = signalPhase(s, game.time);
+      drawSignalHead(cam.x + s.x + half + 7, cam.y + s.y + half + 7, phase.ns, dark);
+      drawSignalHead(cam.x + s.x - half - 14, cam.y + s.y + half + 7, phase.ew, dark);
     }
     // The marina shore: boardwalk planks and a railing, a wet-sand band, then open water.
     context.fillStyle = COLORS.boardwalk;
@@ -1083,6 +1123,88 @@ export function createRenderer(canvas) {
     text(label, cam.x + point.x, cam.y + point.y - 40, 13, color, 'center', 800);
   }
 
+  /** The police helicopter at five stars, drawn last so it rides over the whole city:
+   * a soft ground shadow thrown away from the machine (that offset is what sells the
+   * altitude), a pale searchlight pool where the beam lands, the dark body with its PD
+   * band and glass nose, blinking nav lights, and over it all a translucent rotor disc
+   * with two blurred blade lines sweeping on the rotor's own clock. */
+  function drawHeli(game, cam, dark) {
+    const heli = game.police.heli;
+    if (!heli) return;
+    const hx = cam.x + heli.x;
+    const hy = cam.y + heli.y;
+    context.fillStyle = 'rgba(0,0,0,0.20)';
+    context.beginPath();
+    context.ellipse(hx - 36, hy + 42, 34, 13, heli.angle, 0, Math.PI * 2);
+    context.fill();
+    const pool = context.createRadialGradient(hx, hy, 4, hx, hy, 76);
+    pool.addColorStop(0, `rgba(255,246,214,${0.10 + dark * 0.32})`);
+    pool.addColorStop(1, 'rgba(255,246,214,0)');
+    context.fillStyle = pool;
+    context.beginPath();
+    context.arc(hx, hy, 76, 0, Math.PI * 2);
+    context.fill();
+    context.save();
+    context.translate(hx, hy);
+    context.rotate(heli.angle);
+    // Tail boom and fin.
+    context.fillStyle = '#232a33';
+    context.fillRect(-54, -3, 36, 6);
+    context.fillRect(-58, -7, 6, 14);
+    // Skids.
+    context.strokeStyle = '#10141a';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(-14, -13);
+    context.lineTo(16, -13);
+    context.moveTo(-14, 13);
+    context.lineTo(16, 13);
+    context.stroke();
+    // The body: a dark teardrop with a pale PD band and a glass nose.
+    context.fillStyle = '#2b3542';
+    context.beginPath();
+    context.ellipse(0, 0, 26, 14, 0, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = '#e8e8e8';
+    context.fillRect(-8, -14, 9, 28);
+    context.fillStyle = 'rgba(20,30,44,0.9)';
+    context.beginPath();
+    context.ellipse(17, 0, 8, 9, 0, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = '#8a6420';
+    context.font = `800 8px ${FONT}`;
+    context.textAlign = 'center';
+    context.fillText('PD', -3.5, 3);
+    // Nav lights at the tail: red and green, trading blinks on the rotor's clock.
+    const blink = Math.sin(heli.rotor * 0.5) > 0;
+    context.fillStyle = blink ? '#ff5040' : 'rgba(255,80,64,0.3)';
+    context.beginPath();
+    context.arc(-55, -7, 2.4, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = blink ? 'rgba(63,208,106,0.3)' : '#3fd06a';
+    context.beginPath();
+    context.arc(-55, 7, 2.4, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+    // The rotor disc: a faint full circle and two blade lines sweeping through it.
+    context.save();
+    context.translate(hx, hy);
+    context.fillStyle = 'rgba(200,210,220,0.09)';
+    context.beginPath();
+    context.arc(0, 0, 46, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = 'rgba(220,228,238,0.20)';
+    context.lineWidth = 3;
+    const ra = heli.rotor % Math.PI;
+    context.beginPath();
+    context.moveTo(Math.cos(ra) * -44, Math.sin(ra) * -44);
+    context.lineTo(Math.cos(ra) * 44, Math.sin(ra) * 44);
+    context.moveTo(Math.cos(ra + Math.PI / 2) * -44, Math.sin(ra + Math.PI / 2) * -44);
+    context.lineTo(Math.cos(ra + Math.PI / 2) * 44, Math.sin(ra + Math.PI / 2) * 44);
+    context.stroke();
+    context.restore();
+  }
+
   function drawWorld(game, cam) {
     drawCity(game, cam);
     const dark = darkness(game.clock);
@@ -1167,6 +1289,9 @@ export function createRenderer(canvas) {
       context.fillRect(cam.x, cam.y, WORLD, WORLD);
       if (dark > 0.12) drawNightLights(game, cam, dark);
     }
+    // The helicopter flies above the lighting: drawn after the tint, so its searchlight
+    // pool burns through the night instead of drowning in it.
+    drawHeli(game, cam, dark);
   }
 
   /** After dark: lamp pools, neon spill, light-bar glows and headlight cones, added lightly. */
@@ -1322,6 +1447,13 @@ export function createRenderer(canvas) {
       context.arc(x0 + car.x * scale, y0 + car.y * scale, 3, 0, Math.PI * 2);
       context.fill();
     }
+    // The helicopter, when it is up: a white dot shadowing the chase from the air.
+    if (game.police.heli) {
+      context.fillStyle = '#ffffff';
+      context.beginPath();
+      context.arc(x0 + game.police.heli.x * scale, y0 + game.police.heli.y * scale, 2.5, 0, Math.PI * 2);
+      context.fill();
+    }
     // The player, with a tick showing which way he faces.
     context.fillStyle = '#ffffff';
     context.beginPath();
@@ -1468,7 +1600,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Twelve story missions, plus street races and courier runs on the side.',
+        'Fourteen story missions, live traffic lights, a five-star helicopter.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',
@@ -1491,7 +1623,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_DONE) {
       const stats = game.missions.stats;
       drawPanel('SOLMAR IS YOURS', [
-        'All twelve jobs done. Rico Vega owns this city now.',
+        'All fourteen jobs done. Rico Vega owns this city now.',
         `Final cash: $${game.cash.toLocaleString('en-US')} · Races won: ${stats.races} · Deliveries: ${stats.deliveries}`,
       ], 'Press Enter to keep roaming free', '#7fd069');
     }

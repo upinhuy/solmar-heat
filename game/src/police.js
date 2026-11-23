@@ -4,11 +4,13 @@
 // the player is heading, not where he is, fresh units prefer to appear ahead of a driver,
 // and at four stars the PD parks roadblocks across the road ahead — two cars, and three
 // at the full five stars. At five stars, once you have blown through one roadblock, the
-// PD throws a second one across your road while the heat lasts. Three stars is where the
+// PD throws a second one across your road while the heat lasts — and puts a helicopter
+// over the chase: no gun, no arrest, just a searchlight that refuses to lose you until
+// the heat drops. Three stars is where the
 // pursuit bares its teeth: an extra car joins and fresh units roll in faster. Crimes raise
 // the stars; hiding lowers them.
 import { COP, WANTED_MAX, WORLD } from './config.js';
-import { angleDelta, clamp, distance } from './random.js';
+import { angleDelta, chance, clamp, distance } from './random.js';
 import { driveCar, makeCar } from './vehicles.js';
 import { gridTarget, nearestRoadPoint, randomRoadPoint } from './world.js';
 
@@ -23,6 +25,7 @@ export function createPolice() {
     sirenOn: false,
     roadblockSet: false, // a roadblock is out for the current heat level
     roadblockWaves: 0, // roadblocks thrown at this heat so far (a second wave only at 5 stars)
+    heli: null, // the five-star helicopter: {x, y, angle, rotor, leaving} while it hunts
   };
 }
 
@@ -126,6 +129,7 @@ export function updatePolice(game, dt, events) {
     police.sirenOn = false;
     police.roadblockSet = false;
     police.roadblockWaves = 0;
+    police.heli = null; // no heat, no bird: it is simply gone
     return null;
   }
   if (police.wanted < COP.roadblockMinStars) {
@@ -162,6 +166,56 @@ export function updatePolice(game, dt, events) {
       const spot = spawnPointNear(game);
       police.cops.push({ x: spot.x, y: spot.y, angle: 0, speed: COP.footSpeed, arrest: 0 });
     }
+  }
+
+  // The helicopter: at the full five stars the PD puts a bird over the chase. It carries
+  // no gun and makes no arrest — it hovers over the player with its searchlight on, aimed
+  // where he is heading and swaying as it hunts, faster than any car in the city. Drop
+  // below five stars and it peels off toward the edge of town and is gone; the ground
+  // units still decide whether the heat cools, so the bird alone can never hold a chase
+  // open forever.
+  if (police.wanted >= WANTED_MAX) {
+    if (!police.heli) {
+      const fromEast = chance(game.rng, 0.5);
+      const a = game.rng() * Math.PI * 2;
+      police.heli = {
+        x: clamp(player.x + (fromEast ? 640 : -640), 40, WORLD - 40),
+        y: clamp(player.y + Math.sin(a) * 420, 40, WORLD - 40),
+        angle: fromEast ? Math.PI : 0,
+        rotor: 0,
+        leaving: false,
+      };
+      events.push({ type: 'announce', text: 'PD helicopter overhead — five stars!' });
+    } else {
+      const heli = police.heli;
+      heli.leaving = false;
+      heli.rotor += dt * 42;
+      const lead = aimPoint(game);
+      const sway = game.time * 0.8;
+      const tx = lead.x + Math.cos(sway) * 34;
+      const ty = lead.y + Math.sin(sway * 1.3) * 26;
+      const dx = tx - heli.x;
+      const dy = ty - heli.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 4) {
+        const stepMove = Math.min(d, COP.heliSpeed * dt);
+        heli.x += (dx / d) * stepMove;
+        heli.y += (dy / d) * stepMove;
+        heli.angle = Math.atan2(dy, dx);
+      }
+    }
+  } else if (police.heli) {
+    const heli = police.heli;
+    heli.leaving = true;
+    heli.rotor += dt * 42;
+    const edgeX = heli.x < WORLD / 2 ? -90 : WORLD + 90;
+    const dx = edgeX - heli.x;
+    const dy = (player.y - heli.y) * 0.15;
+    const d = Math.hypot(dx, dy) || 1;
+    heli.x += (dx / d) * COP.heliSpeed * dt;
+    heli.y += (dy / d) * COP.heliSpeed * dt;
+    heli.angle = Math.atan2(dy, dx);
+    if (heli.x < -70 || heli.x > WORLD + 70) police.heli = null;
   }
 
   // Police cars chase through the street grid, aiming at where the player is heading.

@@ -1,5 +1,5 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Twelve missions in order, each a small state machine with an objective, a map marker,
+// Fourteen missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
 // next. Between story jobs, two repeatable side activities pay cash — generously, so a
 // free-roaming Rico can earn his keep: street races from the green flag and courier runs
@@ -95,6 +95,21 @@ export const MISSIONS = [
     timer: 100,
   },
   {
+    id: 'rushhour',
+    name: 'Rush Hour',
+    reward: 3400,
+    intro: ['Mara Solis: "Rush hour, Rico — the whole city is on the street at once, and the lights are not your friends."', '"The red coupe is marked. Take it across downtown to the drop. One hundred and ten seconds, two stars."'],
+    objectives: ['Steal the marked coupe', 'Reach the drop before the clock runs out'],
+    timer: 110,
+  },
+  {
+    id: 'shipyard',
+    name: 'The Shipyard Score',
+    reward: 3600,
+    intro: ['Mara Solis: "Back to the port, Rico. A case of harbour money changes hands at the yards tonight."', '"Three of their men will object. Drop them, take the case, and bring it home — the patrol will be wide awake."'],
+    objectives: ['Go to the port meet', 'Drop all three guards', 'Grab the cash case', 'Bring the case to the hideout'],
+  },
+  {
     id: 'finale',
     name: 'One Last Ride',
     reward: 4000,
@@ -157,7 +172,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-11): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-13): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -232,6 +247,14 @@ export function startMission(game, index) {
     game.cars.push(limo);
     m.missionCar = limo;
     m.marker = { x: limo.x, y: limo.y };
+  } else if (def.id === 'rushhour') {
+    m.missionCar = placeMissionCar(game, 'sport', '#d0342c');
+    m.marker = { x: m.missionCar.x, y: m.missionCar.y };
+  } else if (def.id === 'shipyard') {
+    // The meet is on the port street itself, kerbside by the yards where the haul's
+    // truck waits: open ground, so the guards can stand and fight on the asphalt.
+    m.casePoint = { x: PORT_SPOT.x, y: PORT_SPOT.y };
+    m.marker = { x: PORT_SPOT.x, y: PORT_SPOT.y };
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -301,7 +324,8 @@ export function currentObjective(game) {
   if (def.id === 'hot' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'nightrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'dawnrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
-  if (def.id === 'showdown' && m.step === 1) {
+  if (def.id === 'rushhour' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if ((def.id === 'showdown' || def.id === 'shipyard') && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
   }
@@ -583,6 +607,60 @@ export function updateMissions(game, dt, events) {
       if (distance(player.x, player.y, MARINA.x, MARINA.y) < 90 && player.inCar && player.car === m.missionCar) {
         finishMission(game, events);
       }
+    }
+  } else if (def.id === 'rushhour') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        m.timer = def.timer || 110;
+        setWanted(game.police, 2);
+        m.door = farPoint(game, player, 950);
+        m.marker = { x: m.door.x, y: m.door.y };
+        say(game, ['Mara Solis: "Go. Beat the lights, beat the clock — the drop is marked."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'Too slow — rush hour swallowed the drop window.');
+        return;
+      }
+      if (distance(player.x, player.y, m.door.x, m.door.y) < 75 && player.inCar) {
+        finishMission(game, events);
+      }
+    }
+  } else if (def.id === 'shipyard') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 70) {
+        m.step = 1;
+        const offsets = [[-90, 6], [80, -10], [-10, 58]];
+        m.hostiles = offsets.map(([ox, oy]) => {
+          const h = makePed(game.rng, m.casePoint.x + ox, m.casePoint.y + oy);
+          h.shirt = '#5b2333';
+          h.hostile = true;
+          h.shootCd = 0.9 + game.rng() * 0.9;
+          game.peds.push(h);
+          return h;
+        });
+        addWanted(game.police, 1);
+        m.marker = null;
+        say(game, ['Guard: "Wrong yard, Vega. The case stays here."']);
+      }
+    } else if (m.step === 1) {
+      updateHostiles(game, dt, events);
+      if (m.hostiles.every((h) => h.down > 0)) {
+        m.step = 2;
+        m.marker = { x: m.casePoint.x, y: m.casePoint.y };
+        say(game, ['Mara Solis: "Quiet among the containers. Grab the case, Rico."']);
+      }
+    } else if (m.step === 2) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
+        m.step = 3;
+        setWanted(game.police, 3);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Case is yours. Three stars — bring it home, Rico."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
     }
   } else if (def.id === 'finale') {
     if (m.step === 0) {

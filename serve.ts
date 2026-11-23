@@ -7,7 +7,10 @@
 // Every file gets a weak ETag from its size and mtime, so a browser reload during
 // development can revalidate cheaply: an If-None-Match that matches gets a 304. The
 // cache-control is no-cache (revalidate every time), not no-store — no-store would forbid
-// the browser from keeping the file at all and make the ETag pointless.
+// the browser from keeping the file at all and make the ETag pointless. Responses also
+// carry two small hardening headers — nosniff, so a browser never second-guesses the
+// declared content type, and a no-referrer policy, so a click out of a locally served
+// page leaks nothing about it — cheap insurance even for a development server.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -87,6 +90,8 @@ createServer((request, response) => {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'content-length': size,
     'cache-control': 'no-cache',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
     etag,
   });
   if (request.method === 'HEAD') {

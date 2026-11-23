@@ -2,7 +2,9 @@
 // pause, enter a car, mute, restart) are queued as bit flags and taken once by the loop, so
 // a press between two frames is never lost and never counted twice. The canvas also swallows
 // the right-click menu, so a stray click while aiming never interrupts a fight, and the
-// movement keys keep their default page behaviour (scrolling) suppressed.
+// movement keys keep their default page behaviour (scrolling) suppressed. Hiding the tab
+// counts as losing focus too: a key released while the game is unseen must not stay held
+// when the player comes back.
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_ENTER = 4;
@@ -73,6 +75,9 @@ export function createInput(canvas) {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) onBlur();
+  });
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerdown', (event) => {

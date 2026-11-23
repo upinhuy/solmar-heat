@@ -2,10 +2,11 @@
 // fountains, street props, and a marina along the south shore — a boardwalk, a pier and
 // moored boats on the water. The south-east blocks are the industrial port: concrete yards
 // stacked with shipping containers under gantry cranes. A distant skyline of towers rings
-// the north and east edges, beyond the streets. Plus the helpers the rest of the game uses
-// to ask the city questions (is this a road? does this circle hit a building? where is the
-// nearest street?). Nothing here draws or listens to input.
-import { AWNING_COLORS, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGN_NAMES, WORLD } from './config.js';
+// the north and east edges, beyond the streets. Every intersection carries a working
+// traffic signal, phased off one shared cycle, and the traffic obeys it. Plus the helpers
+// the rest of the game uses to ask the city questions (is this a road? does this circle
+// hit a building? where is the nearest street?). Nothing here draws or listens to input.
+import { AWNING_COLORS, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, WORLD } from './config.js';
 import { clamp, intRange, pick, range } from './random.js';
 
 export const ROADS = [];
@@ -24,6 +25,20 @@ export const PORT_SPOT = { x: 1990, y: 1950, angle: Math.PI / 2 }; // the port j
 const CRANE_COLORS = ['#39424e', '#8a5a2c', '#54626e', '#74403a'];
 // Short slogans for the billboard props: brief enough to read at a glance from above.
 const BILLBOARD_ADS = ['SOLMAR', 'VORTEX GT', 'TACOS RIO', 'DISCO FARO', 'BAR AZUL', 'CAFE SOL', 'MUELLE 12'];
+
+/**
+ * The phase of one intersection's signal at `time`: { ns, ew }, each 'green', 'yellow'
+ * or 'red'. North-south runs first on the shared cycle — five seconds of green, one of
+ * amber — then east-west gets the same; each intersection's offset staggers it, so a
+ * driver meets a wave of greens down an avenue instead of one city-wide change.
+ */
+export function signalPhase(signal, time) {
+  const t = (((time + signal.offset) % SIGNAL_CYCLE) + SIGNAL_CYCLE) % SIGNAL_CYCLE;
+  if (t < 5) return { ns: 'green', ew: 'red' };
+  if (t < 6) return { ns: 'yellow', ew: 'red' };
+  if (t < 11) return { ns: 'red', ew: 'green' };
+  return { ns: 'red', ew: 'yellow' };
+}
 
 export function isOnRoad(x, y) {
   const half = ROAD_WIDTH / 2;
@@ -119,6 +134,12 @@ export function createCity(random) {
   const yards = []; // industrial port: concrete slabs under the container stacks
   const cranes = []; // industrial port: gantry cranes straddling the yards
   const skyline = []; // distant towers along the north and east edges, outside the streets
+  const signals = []; // a traffic signal at every intersection, phased off the shared cycle
+  for (let ix = 0; ix < 8; ix += 1) {
+    for (let iy = 0; iy < 8; iy += 1) {
+      signals.push({ x: ROADS[ix], y: ROADS[iy], offset: (ix * 5 + iy * 7) % SIGNAL_CYCLE });
+    }
+  }
   const half = ROAD_WIDTH / 2;
   // One building per block, inset from the streets, with a roof colour and a height for shading.
   for (let ix = 0; ix < 7; ix += 1) {
@@ -281,7 +302,7 @@ export function createCity(random) {
     skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
     sy += w + 4 + random() * 22;
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline };
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

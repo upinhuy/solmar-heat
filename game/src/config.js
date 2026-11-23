@@ -23,11 +23,18 @@ export const PLAYER = {
 
 // How much of the city is alive when a run starts. More traffic and more pedestrians make
 // the streets feel crowded, which is what the screenshots and the driving both feed on.
+// This version crowds downtown harder: half again as many moving cars, a dozen more
+// pedestrians and more parked cars at the kerbs.
 export const CITY_POPULATION = {
-  parkedCars: 16,
-  trafficCars: 22,
-  pedestrians: 46,
+  parkedCars: 20,
+  trafficCars: 30,
+  pedestrians: 58,
 };
+
+// Traffic signals run on one shared cycle, in seconds: five of green for one direction,
+// one of amber, then the cross street gets its turn. world.js phases each intersection
+// off this cycle so the whole grid does not change at once.
+export const SIGNAL_CYCLE = 12;
 
 export const CAR = {
   radius: 17,
@@ -55,6 +62,8 @@ export const COP = {
   despawnDistance: 1700,
   roadblockMinStars: 4, // at this heat the PD starts parking cars across the road ahead
   aimLead: 0.42, // seconds of player travel the chase cars aim ahead by
+  heliSpeed: 660, // the five-star helicopter: faster than any car in the city, or it is no threat
+  heliLead: 0.35, // seconds of player travel the helicopter aims ahead by
 };
 
 export const COLORS = {

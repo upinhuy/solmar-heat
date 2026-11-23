@@ -5,14 +5,17 @@
 // summary the judge reads, with the vendored make.fun library.
 //
 // Solmar Heat: an original open-world crime game. Explore the city of Solmar on foot and by
-// car, steal cars, run twelve story missions for Mara Solis — getaway driving, a timed hot
+// car, steal cars, run fourteen story missions for Mara Solis — getaway driving, a timed hot
 // delivery, a tail, a heist, a convoy job, a harbour showdown against rivals who shoot back,
 // a marked-car swap, a timed night run, a truck heist in the industrial port, a limousine
-// dash against the clock, and a five-star finale — plus repeatable street races
+// dash against the clock, a rush-hour coupe run through the downtown lights, a shootout
+// over a cash case in the container yards, and a five-star finale — plus repeatable street races
 // and courier runs that pay generously on the side. Earn cash and stay ahead of the Solmar
 // police as the wanted level rises: the chase cars aim where you are heading, three stars
-// brings an extra car and a faster response, and at four stars the
-// PD parks roadblocks across the road.
+// brings an extra car and a faster response, at four stars the
+// PD parks roadblocks across the road, and at five stars a police helicopter hangs over
+// the chase with its searchlight on you. The traffic, meanwhile, obeys the city's new
+// working traffic signals — and queues at the red ones with its brake lights lit.
 // The city itself is denser and better lit in this version: buildings drawn as raised
 // blocks with lit windows, neon signs and awnings, glowing billboards and litter bins on
 // the corners, seven car body shapes with glass and

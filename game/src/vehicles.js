@@ -6,9 +6,9 @@
 // slows hard, and police light bars each flash on their own phase. Physics is simple
 // arcade: accelerate, steer by speed, grip damps sideways slide, buildings stop you with
 // a thud.
-import { CAR, PED_SPEED, PLAYER, TRAFFIC_SPEED, WORLD } from './config.js';
+import { CAR, PED_SPEED, PLAYER, ROAD_WIDTH, TRAFFIC_SPEED, WORLD } from './config.js';
 import { angleDelta, clamp, distance, intRange, pick, range } from './random.js';
-import { gridTarget, hitsBuilding, nearestRoadPoint, parkingSpot, randomRoadPoint, ROADS } from './world.js';
+import { gridTarget, hitsBuilding, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
 
 const CAR_COLORS = [
   '#b8443a', '#3a6db8', '#c9a13b', '#4d8a4d', '#7a4d8a', '#c9c9c9', '#3a3a3a', '#d06a2c',
@@ -139,10 +139,14 @@ export function driveCar(car, input, dt, buildings) {
  * destination (the destination itself on a shared street, otherwise the intersection that
  * leads to it), and on arrival pick the next intersection along their street. `others` is
  * every car in the world: a driver slows down when another car is close ahead, so the
- * streets queue instead of stacking into one another. A car wedged against a building
- * gives up on its destination after a second and picks a fresh one.
+ * streets queue instead of stacking into one another. They also obey the traffic
+ * signals: approaching an intersection, a car eases up to the stop line on red — and on
+ * amber, when it can still stop in time — and waits there with its brake lights lit
+ * until its direction gets the green. `time` is the game clock the signals phase off.
+ * A car wedged against a building gives up on its destination after a second and picks
+ * a fresh one.
  */
-export function updateTraffic(car, dt, random, buildings, others) {
+export function updateTraffic(car, dt, random, buildings, others, time) {
   if (!car.target) {
     car.target = randomRoadPoint(random);
   }
@@ -186,7 +190,50 @@ export function updateTraffic(car, dt, random, buildings, others) {
       }
     }
   }
-  car.brake = speed < 26 || (Math.abs(turn) > 0.45 && speed < 110); // crawling in a queue, braking for a corner, or hauling the nose around one: lights flare
+  // The traffic signals: only the next intersection ahead matters, and only while the
+  // car is still on the street that leads to it. Inside the box already, a car carries
+  // on through whatever the light says; held at the line for more than five seconds, it
+  // creeps through anyway — a jam at the lights must never wedge the city shut.
+  if (time !== undefined) {
+    const fx = Math.cos(car.angle);
+    const fy = Math.sin(car.angle);
+    const vertical = Math.abs(fy) > Math.abs(fx);
+    const dirSign = vertical ? Math.sign(fy) : Math.sign(fx);
+    if (car.lightPass !== undefined) {
+      const behind = (vertical ? car.lightPass - car.y : car.lightPass - car.x) * dirSign;
+      if (behind < -12) {
+        car.lightPass = undefined;
+        car.lightWait = 0;
+      }
+    }
+    const cross = vertical ? nearestRoadLine(car.x) : nearestRoadLine(car.y);
+    const onStreet = Math.abs((vertical ? car.x : car.y) - cross) < 36;
+    if (onStreet && dirSign !== 0) {
+      for (const line of ROADS) {
+        const aheadDist = (vertical ? line - car.y : line - car.x) * dirSign;
+        if (aheadDist <= 0 || aheadDist > 88) continue;
+        if (aheadDist < ROAD_WIDTH / 2 + 4) break; // inside the box: carry on through
+        const ix = ROADS.indexOf(vertical ? cross : line);
+        const iy = ROADS.indexOf(vertical ? line : cross);
+        const phase = signalPhase({ offset: (ix * 5 + iy * 7) % 12 }, time);
+        const mine = vertical ? phase.ns : phase.ew;
+        const stopDist = aheadDist - (ROAD_WIDTH / 2 + 9);
+        const mustStop = mine === 'red' || (mine === 'yellow' && stopDist > 16);
+        if (mustStop && car.lightPass !== line) {
+          if (stopDist <= 2.5) {
+            speed = 0;
+            car.lightWait = (car.lightWait || 0) + dt;
+            if (car.lightWait > 5) car.lightPass = line; // held too long: creep through
+          } else {
+            speed = Math.min(speed, Math.max(10, stopDist * 2.2));
+            car.lightWait = 0;
+          }
+        }
+        break; // only the next intersection matters
+      }
+    }
+  }
+  car.brake = speed < 26 || (Math.abs(turn) > 0.45 && speed < 110); // crawling in a queue, stopped at a red light, braking for a corner, or hauling the nose around one: lights flare
   const oldX = car.x;
   const oldY = car.y;
   car.x += Math.cos(car.angle) * speed * dt;
@@ -216,7 +263,8 @@ export function updateTraffic(car, dt, random, buildings, others) {
   }
   car.anchorAge += dt;
   if (car.anchorAge > 1.5) {
-    if (distance(car.x, car.y, car.anchorX, car.anchorY) < 6) {
+    // Waiting at a red light is not being wedged: the destination stays.
+    if (distance(car.x, car.y, car.anchorX, car.anchorY) < 6 && !(car.lightWait > 0)) {
       if (car.holdTarget) {
         const road = nearestRoadPoint(car.x, car.y);
         if (!hitsBuilding(buildings, road.x, road.y, car.radius || CAR.radius)) {

@@ -312,9 +312,10 @@ export function stepGame(game, input, dt) {
     }
   }
 
-  // Traffic and pedestrians keep the city alive.
+  // Traffic and pedestrians keep the city alive. The traffic gets the game clock, so it
+  // can read the traffic signals and stop at the red ones.
   for (const car of game.cars) {
-    if (car.traffic) updateTraffic(car, dt, game.rng, game.city.buildings, game.cars);
+    if (car.traffic) updateTraffic(car, dt, game.rng, game.city.buildings, game.cars, game.time);
   }
   // Gentle separation so moving traffic does not stack on one spot. Parked cars, mission
   // cars and the player's car are never shoved: a shove could push one into a building,
@@ -462,6 +463,7 @@ export function startRun(game) {
   game.police.wanted = 0;
   game.police.cars = [];
   game.police.cops = [];
+  game.police.heli = null; // a fresh run starts with an empty sky
   if (!game.missions.active && !game.missions.finishedAll) {
     startMission(game, game.missions.index);
   }

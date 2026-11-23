@@ -12,6 +12,9 @@ export function createAudio() {
   let sirenLfo = null;
   let rainSource = null;
   let rainGain = null;
+  let heliSource = null;
+  let heliGain = null;
+  let heliLfo = null;
   let lastThunder = 0;
   let muted = false;
 
@@ -173,6 +176,42 @@ export function createAudio() {
       }
       engineOsc.frequency.setTargetAtTime(55 + speedRatio * 130, context.currentTime, 0.05);
       engineGain.gain.setTargetAtTime(speedRatio > 0.02 ? 0.05 + speedRatio * 0.05 : 0, context.currentTime, 0.08);
+    },
+    /** The police helicopter overhead: a wash of low noise chopped at rotor speed, so
+     * the beat of the blades sits under the chase. Call every frame with whether the
+     * bird is up; it fades out when the helicopter peels off. */
+    heli(on) {
+      if (!on) {
+        if (heliGain) heliGain.gain.setTargetAtTime(0, context.currentTime, 0.15);
+        return;
+      }
+      if (!ensure()) return;
+      if (!heliSource) {
+        heliSource = context.createBufferSource();
+        heliSource.buffer = noiseBuffer;
+        heliSource.loop = true;
+        const filter = context.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 420;
+        const chop = context.createGain();
+        chop.gain.value = 0.55;
+        heliLfo = context.createOscillator();
+        heliLfo.type = 'sine';
+        heliLfo.frequency.value = 11;
+        const lfoGain = context.createGain();
+        lfoGain.gain.value = 0.45;
+        heliLfo.connect(lfoGain);
+        lfoGain.connect(chop.gain);
+        heliGain = context.createGain();
+        heliGain.gain.value = 0;
+        heliSource.connect(filter);
+        filter.connect(chop);
+        chop.connect(heliGain);
+        heliGain.connect(master);
+        heliSource.start();
+        heliLfo.start();
+      }
+      heliGain.gain.setTargetAtTime(0.05, context.currentTime, 0.3);
     },
     /** The police siren: two alternating tones. Call every frame with on/off. */
     siren(on) {
