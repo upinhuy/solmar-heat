@@ -10,9 +10,9 @@
 // arcade: accelerate, steer by speed, grip damps sideways slide, buildings stop you with
 // a thud. The airfield's prop plane leaves a different trail: thin white puffs off its
 // wingtips while it climbs, gone a second later.
-import { CAR, PED_SPEED, PLAYER, ROAD_WIDTH, TRAFFIC_SPEED, WORLD } from './config.js';
+import { CAR, PED_SPEED, PLAYER, ROAD_WIDTH, SPIKE, TRAFFIC_SPEED, WORLD } from './config.js';
 import { angleDelta, clamp, distance, intRange, pick, range } from './random.js';
-import { gridTarget, hitsBuilding, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
+import { gridTarget, hitsBuilding, MARKET_BOUNDS, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
 
 const CAR_COLORS = [
   '#b8443a', '#3a6db8', '#c9a13b', '#4d8a4d', '#7a4d8a', '#c9c9c9', '#3a3a3a', '#d06a2c',
@@ -98,8 +98,11 @@ export function driveCar(car, input, dt, buildings) {
   if (input.handbrake) along *= Math.max(0, 1 - 3.2 * dt);
   car.brake = !!input.back || !!input.handbrake;
   along -= along * CAR.drag * dt;
-  along = clamp(along, -CAR.maxReverse, CAR.maxSpeed);
-  side *= Math.max(0, 1 - CAR.grip * dt);
+  // Shredded tyres (a spike strip hit): the car tops out at barely half speed and
+  // loses half its grip, so it slides wide on every corner until the tyres are swapped.
+  const spiked = car.spikeTimer > 0;
+  along = clamp(along, -CAR.maxReverse, spiked ? CAR.maxSpeed * SPIKE.speedMult : CAR.maxSpeed);
+  side *= Math.max(0, 1 - CAR.grip * (spiked ? SPIKE.gripMult : 1) * dt);
   if (Math.abs(along) > 12) {
     const steer = (input.left ? -1 : 0) + (input.right ? 1 : 0);
     car.angle += steer * CAR.steer * (along > 0 ? 1 : -1) * Math.min(1, Math.abs(along) / 160) * dt;
@@ -309,6 +312,20 @@ export function makePed(random, x, y) {
 }
 
 /**
+ * A market browser: a pedestrian who lives in the night market quarter instead of the
+ * sidewalks — slower, browsing between the stalls, never wandering off the plaza.
+ */
+export function makeMarketPed(random) {
+  const ped = makePed(random);
+  ped.x = MARKET_BOUNDS.x + 20 + random() * (MARKET_BOUNDS.w - 40);
+  ped.y = MARKET_BOUNDS.y + 20 + random() * (MARKET_BOUNDS.h - 40);
+  ped.speed = PED_SPEED * 0.7; // browsers stroll, they do not hurry
+  ped.market = true;
+  ped.target = null;
+  return ped;
+}
+
+/**
  * Pedestrians stroll along the sidewalks and cross streets at intersections. When `threat`
  * is a fast car bearing down close by, they dive out of the way and run until it passes.
  */
@@ -336,9 +353,17 @@ export function updatePed(ped, dt, random, threat) {
     return;
   }
   if (!ped.target || distance(ped.x, ped.y, ped.target.x, ped.target.y) < 10) {
-    const p = randomRoadPoint(random);
-    // Offset onto the sidewalk beside the street.
-    ped.target = { x: p.x + 42, y: p.y + 42 };
+    if (ped.market) {
+      // Market browsers pick their next stall inside the plaza and stay there.
+      ped.target = {
+        x: MARKET_BOUNDS.x + 20 + random() * (MARKET_BOUNDS.w - 40),
+        y: MARKET_BOUNDS.y + 20 + random() * (MARKET_BOUNDS.h - 40),
+      };
+    } else {
+      const p = randomRoadPoint(random);
+      // Offset onto the sidewalk beside the street.
+      ped.target = { x: p.x + 42, y: p.y + 42 };
+    }
   }
   const want = Math.atan2(ped.target.y - ped.y, ped.target.x - ped.x);
   ped.angle += clamp(angleDelta(ped.angle, want), -3 * dt, 3 * dt);
@@ -393,6 +418,42 @@ export function tyreSmoke(game, car) {
   const px = car.x - Math.cos(car.angle) * 16 + Math.sin(car.angle) * 10 * side;
   const py = car.y - Math.sin(car.angle) * 16 - Math.cos(car.angle) * 10 * side;
   game.particles.push(makeParticle(px, py, range(game.rng, -20, 20), range(game.rng, -20, 20), 0.8, '#c9c9c9', 5));
+}
+
+/**
+ * Spike strips: the PD's roadblock dressing. A strip is a band across the road, `angle`
+ * along its long axis; a car crosses it when it is close along the band and near its
+ * centreline. The first crossing shreds the car's tyres — `spikeTimer` starts, the car
+ * takes damage, sparks fly and the tyres throw a burst of smoke — and the strip is
+ * spent (`hit`), so a second car can cross the same spot unharmed. Only the car's own
+ * strip timer matters afterwards: driveCar reads it every step.
+ */
+export function spikeCheck(game, car, events) {
+  if (!game.police || !game.police.strips) return;
+  for (const strip of game.police.strips) {
+    if (strip.hit) continue;
+    const dx = car.x - strip.x;
+    const dy = car.y - strip.y;
+    const alongStrip = Math.abs(dx * Math.cos(strip.angle) + dy * Math.sin(strip.angle));
+    const acrossStrip = Math.abs(-dx * Math.sin(strip.angle) + dy * Math.cos(strip.angle));
+    if (alongStrip < SPIKE.length / 2 + (car.radius || CAR.radius) * 0.5 && acrossStrip < 8) {
+      strip.hit = true;
+      car.spikeTimer = SPIKE.duration;
+      car.damage = (car.damage || 0) + SPIKE.damage;
+      sparks(game, car.x, car.y, 10);
+      shredSmoke(game, car);
+      if (events) events.push({ type: 'spike', x: car.x, y: car.y });
+    }
+  }
+}
+
+/** The shredding burst itself: dark smoke and pale rubber dust off all four tyres. */
+export function shredSmoke(game, car) {
+  for (let i = 0; i < 8; i += 1) {
+    const a = game.rng() * Math.PI * 2;
+    const r = 12 + game.rng() * 10;
+    game.particles.push(makeParticle(car.x + Math.cos(a) * r, car.y + Math.sin(a) * r, range(game.rng, -30, 30), range(game.rng, -30, 30), 0.9, game.rng() < 0.5 ? '#3a3a3a' : '#d8d2c4', 4.5));
+  }
 }
 
 export function sparks(game, x, y, n) {

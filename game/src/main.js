@@ -3,7 +3,7 @@
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown|skyline|
-// rain|port|heli|beach|train|storm|airport (with &seed=N) stages that scene instead of running the loop, paints it
+// rain|port|heli|beach|train|storm|airport|market|spikes (with &seed=N) stages that scene instead of running the loop, paints it
 // twice and sets window.__shotReady for a screenshot. The heli scene is the five-star
 // night chase: roadblocks on the ground, the police helicopter's searchlight overhead.
 // The beach scene is the golden-hour cruise along the coast road, the resort district
@@ -12,7 +12,10 @@
 // storm scene is a three-star night chase in a thunderstorm: lightning over downtown,
 // the streets darker, the neon doubled in the wet. The airport scene watches the prop
 // plane lift off the runway at golden hour, the hangar and the north road below it.
-import { STEP } from './config.js';
+// The market scene walks Rico through the night market at 20:30, lanterns lit and the
+// band on the stage. The spikes scene is a four-star night chase: a roadblock and a
+// spike strip across the road ahead, the PD's newest trick.
+import { MARKET, STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
 import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_LIGHTS, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
 import { createAudio } from './audio.js';
@@ -71,6 +74,10 @@ function runGame() {
       else if (event.type === 'punch') audio.punch();
       else if (event.type === 'crash') audio.crash();
       else if (event.type === 'smash') audio.smash();
+      else if (event.type === 'spike') {
+        audio.spike();
+        announce('Spike strip! Tyres shredded — handling is shot.');
+      }
       else if (event.type === 'thunder') audio.thunder();
       else if (event.type === 'checkpoint') {
         audio.checkpoint();
@@ -214,6 +221,13 @@ function runGame() {
         // The sea follows the player too: silent inland, a slow wash near the shore —
         // closest along the beach, where the sand runs down to the water.
         audio.waves(Math.max(0, Math.min(1, (game.player.y - 1750) / 560)));
+        // The night market follows the player too: its murmur swells as he reaches
+        // the plaza and fades as he leaves the quarter — closest in the crowd itself.
+        if (game.city.market) {
+          const mk = game.city.market.bounds;
+          const dMarket = Math.hypot(game.player.x - (mk.x + mk.w / 2), game.player.y - (mk.y + mk.h / 2));
+          audio.market(Math.max(0, Math.min(1, 1 - dMarket / MARKET.murmurRange)));
+        }
         if (result.busted) {
           screen = SCREEN_BUSTED;
           audio.engine(0); // the run is over: the engine and siren stop with it

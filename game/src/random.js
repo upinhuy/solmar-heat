@@ -72,6 +72,16 @@ export function smootherstep(edge0, edge1, x) {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
+/**
+ * A triangle wave in [-1, 1] with period 2π: it rises and falls linearly, so a bob
+ * driven by it sways evenly instead of easing at the ends. The market's lanterns
+ * sway on it and the stage band bobs to the beat on it.
+ */
+export function triWave(t) {
+  const p = ((t % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  return p < Math.PI ? p / (Math.PI / 2) - 1 : 3 - p / (Math.PI / 2);
+}
+
 /** Shortest signed turn from angle `from` to angle `to`, in radians. */
 export function angleDelta(from, to) {
   let d = (to - from) % (Math.PI * 2);

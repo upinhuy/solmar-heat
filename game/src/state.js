@@ -11,9 +11,13 @@
 // circles its loop and pauses at its stations, the airfield's prop plane flies its
 // touch-and-go circuit over the northern blocks, hard impacts bend the cars (a wrecked
 // engine smokes), and the light street props — crates, bins, dock barrels — split open
-// when a fast car ploughs through them and leave their wreckage on the ground.
+// when a fast car ploughs through them and leave their wreckage on the ground. The night
+// market quarter breathes with the clock: after dark its crowd thickens toward the stalls
+// under the string lights, and at four stars the PD lays spike strips across the road
+// ahead of its roadblocks — a car that crosses one shreds its tyres, limps away slow
+// and sliding, and throws tyre smoke until the tyres are swapped.
 import { AIR_LOOP_LENGTH, BEACH_EAST, BEACH_WATER_Y, TRAIN_LOOP_LENGTH, TRAIN_STATIONS, airportPointAt, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
-import { CAR, CITY_POPULATION, PLANE, PLAYER, SAVE_KEY, STEP, STORM, TRAIN, WORLD } from './config.js';
+import { CAR, CITY_POPULATION, MARKET, PLANE, PLAYER, SAVE_KEY, STEP, STORM, TRAIN, WORLD } from './config.js';
 import { createRandom, clamp, distance, pick, smootherstep, smoothstep } from './random.js';
 import {
   cashBurst,
@@ -22,11 +26,14 @@ import {
   driveCar,
   exhaust,
   makeCar,
+  makeMarketPed,
   makePed,
   makeParticle,
   muzzleFlash,
   planeTrail,
   rainSplash,
+  shredSmoke,
+  spikeCheck,
   sparks,
   tyreSmoke,
   updateBullet,
@@ -126,6 +133,7 @@ export function createGame(seed, saved) {
     // `doubleStrike` is set when a bolt is due a second, weaker answer.
     weather: { rain: 0, nextChange: 75, lock: false, storm: 0, flash: 0, flicker: false, nextBolt: 8, boltX: 0, boltY: 0, boltSeed: 0, gust: 0, doubleStrike: false },
     shake: 0, // camera kick from the last hard impact, in world units, decaying
+    marketTimer: 0, // seconds until the next market browser arrives after dark
     dialogue: null,
     objectiveText: '',
     audio: null,
@@ -142,6 +150,8 @@ export function createGame(seed, saved) {
     game.cars.push(car);
   }
   for (let i = 0; i < CITY_POPULATION.pedestrians; i += 1) game.peds.push(makePed(rng));
+  // The night market opens with its daytime crowd already browsing the stalls.
+  for (let i = 0; i < MARKET.crowdDay; i += 1) game.peds.push(makeMarketPed(rng));
   if (saved) {
     game.cash = saved.cash || 0;
     game.missions.sportUnlocked = !!saved.sportUnlocked;
@@ -498,6 +508,14 @@ export function stepGame(game, input, dt) {
         }
       }
     }
+    // Spike strips: a car that crosses one shreds its tyres — the timer starts in
+    // spikeCheck, the handling loss lives in driveCar, and while the tyres are
+    // shredded the car throws tyre smoke off its wheels.
+    if (car.spikeTimer > 0) {
+      car.spikeTimer -= dt;
+      if (game.rng() < dt * 9) tyreSmoke(game, car);
+    }
+    spikeCheck(game, car, events);
   } else {
     const move = input.move;
     const len = Math.hypot(move.x, move.y);
@@ -547,6 +565,21 @@ export function stepGame(game, input, dt) {
   for (const ped of game.peds) {
     if (ped.contact || ped.hostile) continue; // mission people are driven by missions.js
     updatePed(ped, dt, game.rng, threat);
+  }
+  // The night market breathes with the clock: after dark the crowd thickens toward
+  // MARKET.crowdNight, one browser at a time; by day it thins back to crowdDay.
+  // Market browsers never leave the plaza — updatePed keeps them inside it.
+  game.marketTimer -= dt;
+  const marketCount = game.peds.filter((p) => p.market).length;
+  const hour = (game.clock / 60) % 24;
+  const night = hour >= 19 || hour < 5;
+  if (night && marketCount < MARKET.crowdNight && game.marketTimer <= 0) {
+    game.marketTimer = MARKET.spawnEvery;
+    game.peds.push(makeMarketPed(game.rng));
+  } else if (!night && marketCount > MARKET.crowdDay && game.marketTimer <= 0) {
+    game.marketTimer = MARKET.spawnEvery;
+    const idx = game.peds.findIndex((p) => p.market);
+    if (idx >= 0) game.peds.splice(idx, 1); // one browser heads home at a time
   }
 
   // Bullets fly and hit people and police cars. A rival's bullet (hostile) hunts the player.
@@ -709,6 +742,7 @@ export function startRun(game) {
   game.police.wanted = 0;
   game.police.cars = [];
   game.police.cops = [];
+  game.police.strips = []; // a fresh run starts with the roads swept clean
   game.police.heli = null; // a fresh run starts with an empty sky
   if (!game.missions.active && !game.missions.finishedAll) {
     startMission(game, game.missions.index);

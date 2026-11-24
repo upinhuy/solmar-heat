@@ -1,4 +1,4 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train|storm|airport.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train|storm|airport|market|spikes.
 // Each one plays the real rules forward from a fresh seeded game for a fixed number of
 // steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
 // a short game really looks like and the same seed always gives the same frame. Each scene
@@ -16,6 +16,10 @@
 // due behind the first. The airport scene watches the prop plane lift off the runway at golden hour,
 // the hangar and the north road below it, from a car on the parallel street — with a
 // fuel truck by the hangar, a staff car on the road, and the windsock leaning in a light breeze.
+// The market scene walks Rico through the night market at 20:30, lanterns lit, the band
+// on the stage and the crowd thick under the string lights. The spikes scene is a
+// four-star night chase: a roadblock and a fresh spike strip across the road ahead, the
+// PD's newest trick, with the pursuit strung out behind the player.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -120,7 +124,7 @@ function walkToward(game, target, seconds) {
 
 /**
  * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain,
- * port, heli, beach, train, storm or airport; any other name is start) and return the screen to draw over it.
+ * port, heli, beach, train, storm, airport, market or spikes; any other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, game) {
   if (name === 'skyline') {
@@ -262,6 +266,88 @@ export function stageShot(name, game) {
     // way down the runway's eastbound leg — the frame catches it with the hangar and
     // the runway lights still in view.
     game.plane = { s: 520, speed: 200, alt: 0.87, onGround: false };
+    game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'market') {
+    game.clock = 20 * 60 + 30; // 20:30 — the market at its liveliest, lanterns lit
+    startRun(game);
+    noActivities(game);
+    // Rico walks into the plaza from the south, toward the stage — the stalls and
+    // string lights around him, the crowd thick after dark.
+    game.player.x = 1500;
+    game.player.y = 1260;
+    game.player.health = 10000; // a staged scene: the walk lasts the photograph
+    // The night crowd, topped up so the plaza reads full: extra browsers arrive
+    // through the real stepGame cadence, so the frame is what a night in the
+    // quarter really looks like.
+    for (let t = 0; t < 8; t += 1) {
+      stepGame(game, IDLE, 0.5);
+    }
+    walkToward(game, { x: 1500, y: 1165 }, 3);
+    game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'spikes') {
+    game.clock = 21 * 60 + 30; // night: light bars, neon and the strip's steel teeth
+    startRun(game);
+    noActivities(game);
+    game.player.x = 750;
+    game.player.y = 1050;
+    putPlayerInCar(game);
+    // The car itself, on the avenue and facing east: the autopilot only has to hold
+    // the line from here, so the frame catches a clean eastward chase.
+    const car0 = game.player.car;
+    car0.x = 750;
+    car0.y = 1050;
+    car0.angle = 0;
+    car0.vx = 0;
+    car0.vy = 0;
+    game.player.x = car0.x;
+    game.player.y = car0.y;
+    game.player.health = 500; // a staged scene: the pursuit lasts the photograph
+    setWanted(game.police, 4); // four stars: roadblocks and spike strips ahead
+    // One straight leg east along the avenue, so the car is still heading east when
+    // the dressing goes in — the strip and the roadblock land in frame, ahead of it.
+    const route = [{ x: 2250, y: 1050 }];
+    driveRoute(game, routeTarget(game, route), 2);
+    // Pin the heat back to four stars: a ped under the wheels on the way can push it
+    // to five, and the frame is about the strips, not the helicopter.
+    setWanted(game.police, 4);
+    game.police.heli = null;
+    // Scene dressing: a fresh spike strip across the road ahead and a roadblock
+    // behind it, so the frame catches the strip's teeth and the parked cruisers
+    // together — the same geometry setRoadblock lays down in a real chase.
+    const car = game.player.car;
+    const stripAhead = { x: car.x + Math.cos(car.angle) * 320, y: car.y + Math.sin(car.angle) * 320 };
+    const stripSpot = nearestRoadPoint(stripAhead.x, stripAhead.y);
+    const blockAhead = { x: car.x + Math.cos(car.angle) * 450, y: car.y + Math.sin(car.angle) * 450 };
+    const blockSpot = nearestRoadPoint(blockAhead.x, blockAhead.y);
+    const onVertical = Math.abs(blockSpot.x - blockAhead.x) < Math.abs(blockSpot.y - blockAhead.y);
+    game.police.strips.push({ x: stripSpot.x, y: stripSpot.y, angle: onVertical ? 0 : Math.PI / 2, hit: false });
+    for (const offset of [-19, 19]) {
+      const cop = makeCar(game.rng, {
+        x: onVertical ? blockSpot.x + offset : blockSpot.x,
+        y: onVertical ? blockSpot.y : blockSpot.y + offset,
+        angle: onVertical ? Math.PI / 2 : 0, kind: 'police', color: '#1c2733', police: true, speedTarget: 0,
+      });
+      cop.siren = 1;
+      cop.roadblock = true;
+      game.police.cars.push(cop);
+    }
+    // Scene dressing, as in the rain scene: string the pursuit out behind the player
+    // so the frame reads as a chase, not a convoy stacked on one point. Roadblock
+    // cars keep their posts — they are half the point of the picture — and every
+    // chaser comes off the player's bumper, so no cruiser overlaps the hero car.
+    for (const [i, cop] of [...game.police.cars].filter((c) => !c.roadblock).entries()) {
+      cop.x = car.x - Math.cos(car.angle) * (85 + i * 72);
+      cop.y = car.y - Math.sin(car.angle) * (85 + i * 72);
+      const road = nearestRoadPoint(cop.x, cop.y);
+      cop.x = road.x;
+      cop.y = road.y;
+      cop.angle = car.angle;
+      cop.siren = 1;
+    }
     game.dialogue = null;
     return { screen: SCREEN_PLAY };
   }

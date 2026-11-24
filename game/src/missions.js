@@ -17,7 +17,7 @@
 // from the depot — they run on their own state, alongside whatever the story is doing.
 import { distance } from './random.js';
 import { cashBurst, makeCar, makePed, makeSportCar, muzzleFlash } from './vehicles.js';
-import { AIRPORT_CAR, AIRPORT_MEET, AIRSTRIP, BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, PORT_SPOT, SHOWROOM_SPOT, STATION_MEET, AIR_LOOP_LENGTH, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { AIRPORT_CAR, AIRPORT_MEET, AIRSTRIP, BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, MARKET_MEET, PORT_SPOT, SHOWROOM_SPOT, STATION_MEET, AIR_LOOP_LENGTH, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import { addWanted, setWanted } from './police.js';
 
 export const HIDEOUT = { x: 150, y: 2100 };
@@ -164,6 +164,21 @@ export const MISSIONS = [
     reward: 5200,
     intro: ['Mara Solis: "A rival crew is flying a case out of Solmar tonight, Rico — right off our little airfield."', '"Three of them guard the plane on the tarmac, and the plane keeps circling overhead. Drop them, take the case, and bring it home."'],
     objectives: ['Go to the airfield', 'Drop all three of them', 'Grab the cash case', 'Bring the case to the hideout'],
+  },
+  {
+    id: 'market',
+    name: 'The Night Market',
+    reward: 5400,
+    intro: ['Mara Solis: "The night market, Rico — lanterns, food stalls, a band on the stage, and a case changing hands in the crowd."', '"Meet my contact by the stage. It will not stay friendly — three of theirs wait in the plaza. Bring the case home."'],
+    objectives: ['Meet the contact by the market stage', 'Drop all three rivals', 'Grab the cash case', 'Bring the case to the hideout'],
+  },
+  {
+    id: 'spikes',
+    name: 'Spike Alley',
+    reward: 5600,
+    intro: ['Mara Solis: "The blue coupe on the avenue west of the market, Rico — and the PD is laying strips tonight."', '"Four stars the moment you touch the wheel. Swerve around the strips, beat the roadblocks, one hundred and fifteen seconds to the drop."'],
+    objectives: ['Steal the marked coupe', 'Reach the drop before the clock runs out'],
+    timer: 115,
   },
   {
     id: 'finale',
@@ -359,6 +374,21 @@ export function startMission(game, index) {
     game.plane.s = AIR_LOOP_LENGTH - 300;
     m.casePoint = { x: AIRSTRIP.x, y: AIRSTRIP.y };
     m.marker = { x: AIRSTRIP.x, y: AIRSTRIP.y };
+  } else if (def.id === 'market') {
+    // The meet is by the festival stage in the night market, under the string lights:
+    // the contact waits in the crowd, and the case changes hands in the plaza.
+    m.contact = { x: MARKET_MEET.x, y: MARKET_MEET.y, angle: Math.PI / 2, shirt: '#e8b23a', target: null, down: 0, fade: 0, walkPhase: 0, contact: true };
+    game.peds.push(m.contact);
+    m.casePoint = { x: 1500, y: 1220 };
+    m.marker = { x: MARKET_MEET.x, y: MARKET_MEET.y };
+  } else if (def.id === 'spikes') {
+    // The marked car waits kerbside on the avenue west of the market, and the PD is
+    // already awake: four stars from the moment the engine turns, roadblocks and
+    // spike strips across the route to the drop.
+    const car = makeCar(game.rng, { x: 1170, y: 1066, angle: 0, kind: 'mission', shape: 'sport', color: '#2f6fd0', missionCar: true });
+    game.cars.push(car);
+    m.missionCar = car;
+    m.marker = { x: car.x, y: car.y };
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -442,7 +472,8 @@ export function currentObjective(game) {
   if (def.id === 'coastrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'station' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'stormrun' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
-  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk' || def.id === 'ambush' || def.id === 'airlift') && m.step === 1) {
+  if (def.id === 'spikes' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk' || def.id === 'ambush' || def.id === 'airlift' || def.id === 'market') && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
   }
@@ -964,6 +995,66 @@ export function updateMissions(game, dt, events) {
       }
     } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
       finishMission(game, events);
+    }
+  } else if (def.id === 'market') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.contact.x, m.contact.y) < 46 && !player.inCar) {
+        // The handoff: the contact melts into the market crowd with the case in
+        // Rico's hands — and the crew that was watching from the stalls steps out.
+        game.peds = game.peds.filter((p) => p !== m.contact);
+        m.contact = null;
+        m.step = 1;
+        // Three rivals spread across the plaza between the stalls: warm lantern
+        // light, loud music, and guns under the awnings.
+        const offsets = [[-70, -10], [70, 10], [0, 60]];
+        m.hostiles = offsets.map(([ox, oy]) => {
+          const h = makePed(game.rng, m.casePoint.x + ox, m.casePoint.y + oy);
+          h.shirt = '#a03a5e';
+          h.hostile = true;
+          h.shootCd = 0.9 + game.rng() * 0.9;
+          game.peds.push(h);
+          return h;
+        });
+        addWanted(game.police, 1);
+        m.marker = null;
+        say(game, ['Market boss: "Wrong market, Vega. The case stays with us — and so do you."']);
+      }
+    } else if (m.step === 1) {
+      updateHostiles(game, dt, events);
+      if (m.hostiles.every((h) => h.down > 0)) {
+        m.step = 2;
+        m.marker = { x: m.casePoint.x, y: m.casePoint.y };
+        say(game, ['Mara Solis: "Quiet in the market. Grab the case, Rico."']);
+      }
+    } else if (m.step === 2) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
+        m.step = 3;
+        setWanted(game.police, 3);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Case is yours. Three stars over the lanterns — bring it home, Rico."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
+    }
+  } else if (def.id === 'spikes') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        m.timer = def.timer || 115;
+        setWanted(game.police, 4); // four stars: roadblocks and spike strips on the route
+        m.door = farPoint(game, player, 950);
+        m.marker = { x: m.door.x, y: m.door.y };
+        say(game, ['Mara Solis: "Four stars the moment you touch the wheel — and the PD is laying strips tonight. Swerve around them, Rico."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'Too slow — the drop window closed and the buyer walked.');
+        return;
+      }
+      if (distance(player.x, player.y, m.door.x, m.door.y) < 75 && player.inCar) {
+        finishMission(game, events);
+      }
     }
   } else if (def.id === 'finale') {
     if (m.step === 0) {

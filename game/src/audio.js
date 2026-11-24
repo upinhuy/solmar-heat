@@ -26,6 +26,9 @@ export function createAudio() {
   let planeGain = null;
   let planeLfo = null;
   let planeFilter = null; // the drone's bandpass: its pitch follows the plane's approach
+  let marketSource = null;
+  let marketGain = null;
+  let marketLfo = null;
   let lastThunder = 0;
   let muted = false;
 
@@ -113,6 +116,13 @@ export function createAudio() {
     smash() {
       noiseBurst(0.14, 2400, 0.32);
       tone(180, 0.07, 'triangle', 0.18, 70);
+    },
+    /** Tyres shredding on a spike strip: a harsh high tearing burst, then a low thump
+     * as the rubber gives — call once per strip hit, from the spike event. */
+    spike() {
+      noiseBurst(0.3, 5200, 0.5);
+      noiseBurst(0.18, 3000, 0.35);
+      tone(95, 0.25, 'sawtooth', 0.3, 38);
     },
     /** The elevated train passing: a low rumble of filtered noise whose loudness
      * follows how close the consist is (0 = the far side of the loop, silent). Call
@@ -309,6 +319,44 @@ export function createAudio() {
         heliLfo.start();
       }
       heliGain.gain.setTargetAtTime(0.05, context.currentTime, 0.3);
+    },
+    /** The night market's murmur: a crowd wash of bandpassed noise that swells and
+     * thins on a slow LFO — voices, plates, the band on the stage — whose loudness
+     * follows how close the player stands to the plaza (0 = elsewhere, silent).
+     * Call every frame; it fades out as the player leaves the quarter. */
+    market(closeness) {
+      if (closeness <= 0) {
+        if (marketGain) marketGain.gain.setTargetAtTime(0, context.currentTime, 0.5);
+        return;
+      }
+      if (!ensure()) return;
+      if (!marketSource) {
+        marketSource = context.createBufferSource();
+        marketSource.buffer = noiseBuffer;
+        marketSource.loop = true;
+        const filter = context.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 850;
+        filter.Q.value = 0.7;
+        const murmur = context.createGain();
+        murmur.gain.value = 0.6;
+        marketLfo = context.createOscillator();
+        marketLfo.type = 'sine';
+        marketLfo.frequency.value = 0.35; // the crowd swells and thins, a few seconds a breath
+        const lfoGain = context.createGain();
+        lfoGain.gain.value = 0.35;
+        marketLfo.connect(lfoGain);
+        lfoGain.connect(murmur.gain);
+        marketGain = context.createGain();
+        marketGain.gain.value = 0;
+        marketSource.connect(filter);
+        filter.connect(murmur);
+        murmur.connect(marketGain);
+        marketGain.connect(master);
+        marketSource.start();
+        marketLfo.start();
+      }
+      marketGain.gain.setTargetAtTime(0.02 + closeness * 0.06, context.currentTime, 0.8);
     },
     /** The sea along the south shore: a slow-breathing wash of low noise whose loudness
      * follows how close the player stands to the water (0 = inland, silent). Call every

@@ -9,7 +9,9 @@
 // skyline ringing the north and east edges, then buildings drawn as low extruded blocks —
 // a parapet roof with clutter on top, a windowed south face below it, neon signboards and
 // striped awnings on the commercial blocks, billboards glowing over the corners and litter
-// bins at the kerbs. Over the middle avenues rides the elevated railway: a concrete
+// bins at the kerbs. Downtown, one block is the night market quarter: warm festival paving,
+// eight food stalls with striped awnings and lanterns, a stage with a red curtain and a
+// band, and string lights sagging between posts over the crowd. Over the middle avenues rides the elevated railway: a concrete
 // viaduct on pillars with pale rails, two canopied stations, and a three-car train in a
 // teal-and-cream livery circling above the traffic, its shadow sliding along the street
 // below — drawn over the ground traffic, because everything on the street passes under
@@ -36,7 +38,7 @@
 import { COLORS, FIRST_ROAD, PLANE, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
 import { AIRPORT_DRUMS, AIRPORT_RUNWAY, AIRPORT_TAXIWAY, AIRPORT_WINDSOCK, BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, TRAIN_LOOP_LENGTH, WATER_Y, airportPointAt, signalPhase, trainPointAt } from './world.js';
-import { hash01, lerp } from './random.js';
+import { hash01, lerp, triWave } from './random.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -358,6 +360,17 @@ export function createRenderer(canvas) {
     context.fillStyle = COLORS.plaza;
     for (const f of city.fountains) {
       context.fillRect(cam.x + f.x - 62, cam.y + f.y - 62, 124, 124);
+    }
+    // The night market's plaza: warm festival paving over the whole market block,
+    // speckled like the resort aprons, so the quarter reads as one place by day.
+    const mk = city.market && city.market.bounds;
+    if (mk && mk.x < vis.x1 && mk.x + mk.w > vis.x0 && mk.y < vis.y1 && mk.y + mk.h > vis.y0) {
+      context.fillStyle = COLORS.marketPlaza;
+      context.fillRect(cam.x + mk.x, cam.y + mk.y, mk.w, mk.h);
+      context.fillStyle = 'rgba(255,220,150,0.14)';
+      for (let s = 0; s < 16; s += 1) {
+        context.fillRect(cam.x + mk.x + hash01(mk.x + s * 41, mk.y) * (mk.w - 8), cam.y + mk.y + hash01(mk.x, mk.y + s * 67) * (mk.h - 6), 5, 3);
+      }
     }
     // The port yards: concrete slabs with painted bay lines under the container stacks.
     for (const yard of city.yards || []) {
@@ -800,6 +813,76 @@ export function createRenderer(canvas) {
         if (b.w >= 50) text('SOLMAR', bx + 6, by + b.h - 5, 7, 'rgba(255,255,255,0.55)', 'left', 700);
         continue;
       }
+      // A food stall: a wooden counter with goods on top, a striped awning overhead
+      // and a lantern swaying at the corner — the market's own little shopfront.
+      if (b.kind === 'stall') {
+        context.fillStyle = 'rgba(0,0,0,0.18)';
+        context.fillRect(bx + 3, by + 4, b.w, b.h);
+        context.fillStyle = '#6b4a2f';
+        context.fillRect(bx, by, b.w, b.h);
+        context.fillStyle = shade('#6b4a2f', 1.25);
+        context.fillRect(bx + 2, by + 2, b.w - 4, 6);
+        // Goods on the counter: bright dots in fruit and spice colours.
+        const goods = ['#e2583e', '#f2a541', '#3e8f6a', '#d94f70'];
+        for (let gI = 0; gI < 4; gI += 1) {
+          context.fillStyle = goods[(gI + b.x) % goods.length];
+          context.beginPath();
+          context.arc(bx + 7 + gI * 7, by + 5, 2.4, 0, Math.PI * 2);
+          context.fill();
+        }
+        // The awning: stripes overhanging the counter, and the stall's sign below it.
+        for (let s = 0; s < b.w + 4; s += 8) {
+          context.fillStyle = (s / 8) % 2 === 0 ? b.awning : '#e8e2d4';
+          context.fillRect(bx - 2 + s, by - 7, Math.min(8, b.w + 4 - s), 7);
+        }
+        context.fillStyle = 'rgba(0,0,0,0.25)';
+        context.fillRect(bx - 2, by, b.w + 4, 1.5);
+        text(b.label, bx + b.w / 2, by + b.h - 4, 7, '#fff6e0', 'center', 700);
+        // The lantern: a warm dot swaying at the stall's corner on a short line.
+        const sway = triWave(game.time * 0.8 + b.x * 0.05) * 2;
+        context.strokeStyle = 'rgba(40,32,24,0.8)';
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(bx + b.w - 4, by - 7);
+        context.lineTo(bx + b.w - 4 + sway, by - 2);
+        context.stroke();
+        context.fillStyle = COLORS.lantern;
+        context.beginPath();
+        context.arc(bx + b.w - 4 + sway, by, 2.6, 0, Math.PI * 2);
+        context.fill();
+        continue;
+      }
+      // The festival stage: a low wooden platform with a red curtain backdrop, and
+      // the band on it — three figures bobbing to the beat, swaying with the music.
+      if (b.kind === 'stage') {
+        context.fillStyle = 'rgba(0,0,0,0.18)';
+        context.fillRect(bx + 4, by + 5, b.w, b.h);
+        context.fillStyle = COLORS.stageFloor;
+        context.fillRect(bx, by, b.w, b.h);
+        context.fillStyle = shade(COLORS.stageFloor, 0.7);
+        context.fillRect(bx, by + b.h - 8, b.w, 8);
+        // The curtain: a red backdrop with darker folds, behind the band.
+        context.fillStyle = COLORS.stageCurtain;
+        context.fillRect(bx + 6, by + 3, b.w - 12, 15);
+        context.fillStyle = 'rgba(0,0,0,0.28)';
+        for (let fx = bx + 14; fx < bx + b.w - 8; fx += 13) {
+          context.fillRect(fx, by + 3, 4, 15);
+        }
+        // The band: a singer and two players, bobbing on the beat.
+        const bandShirts = ['#e8b23a', '#39c2d7', '#d94f70'];
+        for (let mI = 0; mI < 3; mI += 1) {
+          const mx = bx + 24 + mI * 21;
+          const bob = triWave(game.time * 2 + mI * 1.3) * 2.5;
+          context.fillStyle = bandShirts[mI];
+          context.fillRect(mx - 4, by + 20 + bob, 8, 10);
+          context.fillStyle = '#e8c39a';
+          context.beginPath();
+          context.arc(mx, by + 17 + bob, 3.6, 0, Math.PI * 2);
+          context.fill();
+        }
+        if (b.sign) text(b.sign.text, bx + b.w / 2, by - 4, 9, b.sign.color, 'center', 700);
+        continue;
+      }
       // A soft shadow in two layers: a wide faint throw under a tighter darker one.
       context.fillStyle = 'rgba(0,0,0,0.10)';
       context.fillRect(bx + 13, by + faceH + 14, b.w, b.h);
@@ -886,6 +969,36 @@ export function createRenderer(canvas) {
       context.fillStyle = 'rgba(255,255,255,0.10)';
       context.fillRect(bx + 7, by + 7, b.w - 14, 3);
       if (b.sign) drawSign(b, bx, by, dark);
+    }
+    // The market's string lights: sagging spans between the plaza posts, bulbs strung
+    // along each one — warm by day, glowing after dark (drawNightLights adds the pools).
+    if (city.market) {
+      context.strokeStyle = 'rgba(40,32,24,0.85)';
+      context.lineWidth = 1.5;
+      for (const span of city.market.lights) {
+        const mx = (span.x1 + span.x2) / 2;
+        const my = (span.y1 + span.y2) / 2 + 12; // the sag: the wire dips mid-span
+        context.beginPath();
+        context.moveTo(cam.x + span.x1, cam.y + span.y1 - 14);
+        context.quadraticCurveTo(cam.x + mx, cam.y + my - 14, cam.x + span.x2, cam.y + span.y2 - 14);
+        context.stroke();
+        const n = 6;
+        for (let i = 1; i <= n; i += 1) {
+          const t = i / (n + 1);
+          const lx = (1 - t) * (1 - t) * span.x1 + 2 * (1 - t) * t * mx + t * t * span.x2;
+          const ly = (1 - t) * (1 - t) * span.y1 + 2 * (1 - t) * t * my + t * t * span.y2 - 14;
+          context.fillStyle = dark > 0.3 ? '#ffd98a' : COLORS.lantern;
+          context.beginPath();
+          context.arc(cam.x + lx, cam.y + ly, 2.5, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+      // The posts themselves: thin poles with a little crossbar at the top.
+      context.fillStyle = '#3a3226';
+      for (const post of city.market.posts) {
+        context.fillRect(cam.x + post.x - 1.5, cam.y + post.y - 16, 3, 16);
+        context.fillRect(cam.x + post.x - 5, cam.y + post.y - 16, 10, 2);
+      }
     }
     // Gantry cranes over the port yards: two legs, a long beam with a sunlit top edge, a
     // trolley, and a cable with a hook block hanging over the stacks.
@@ -2019,6 +2132,26 @@ export function createRenderer(canvas) {
 
   function drawWorld(game, cam) {
     drawCity(game, cam);
+    // Police spike strips lie flat on the asphalt across the road ahead, drawn over
+    // the road and under the cars: a dark band with steel teeth, dulled flat once
+    // they have bitten a set of tyres.
+    for (const strip of game.police.strips || []) {
+      context.save();
+      context.translate(cam.x + strip.x, cam.y + strip.y);
+      context.rotate(strip.angle);
+      context.fillStyle = COLORS.spikeBand;
+      context.fillRect(-20, -6, 40, 12);
+      context.fillStyle = strip.hit ? COLORS.spikeHit : COLORS.spikeTooth;
+      for (let tx = -17; tx <= 17; tx += 6.8) {
+        context.beginPath();
+        context.moveTo(tx - 2.5, -6);
+        context.lineTo(tx, strip.hit ? -1.5 : 6);
+        context.lineTo(tx + 2.5, -6);
+        context.closePath();
+        context.fill();
+      }
+      context.restore();
+    }
     // A thunderstorm darkens the streets beyond the hour's own dark, and the neon
     // burns harder in the wet — the storm's own light, on top of the night's.
     const stormDark = game.weather && game.weather.storm > 0 ? 0.16 : 0;
@@ -2242,6 +2375,28 @@ export function createRenderer(canvas) {
       context.arc(cam.x + k.x, cam.y + k.y, 11, 0, Math.PI * 2);
       context.fill();
     }
+    // The night market glows after dark: a warm pool over the plaza from the string
+    // lights, a brighter one over each stall's lantern, and the stage's own spotlight.
+    if (game.city.market) {
+      const mk = game.city.market.bounds;
+      context.fillStyle = 'rgba(255,180,90,0.045)';
+      context.beginPath();
+      context.ellipse(cam.x + mk.x + mk.w / 2, cam.y + mk.y + mk.h / 2, mk.w * 0.62, mk.h * 0.55, 0, 0, Math.PI * 2);
+      context.fill();
+      for (const b of game.city.buildings) {
+        if (b.kind !== 'stall') continue;
+        if (b.x < vis.x0 || b.x > vis.x1 || b.y < vis.y0 || b.y > vis.y1) continue;
+        context.fillStyle = 'rgba(255,190,100,0.07)';
+        context.beginPath();
+        context.arc(cam.x + b.x + b.w / 2, cam.y + b.y + b.h / 2, 16, 0, Math.PI * 2);
+        context.fill();
+      }
+      const st = game.city.market.stage;
+      context.fillStyle = 'rgba(255,200,120,0.08)';
+      context.beginPath();
+      context.ellipse(cam.x + st.x + st.w / 2, cam.y + st.y + st.h / 2, 64, 34, 0, 0, Math.PI * 2);
+      context.fill();
+    }
     // The runway's edge lights throw their own amber pools on the strip after dark, so
     // the airfield reads from the north road the way the lamps read downtown.
     if (game.city.airport) {
@@ -2309,6 +2464,23 @@ export function createRenderer(canvas) {
       const r = game.city.airport.runway;
       context.fillStyle = '#6a6f76';
       context.fillRect(x0 + r.x * scale, y0 + r.y * scale, r.w * scale, Math.max(2, r.h * scale));
+    }
+    // The night market quarter: a warm amber block downtown, where the stalls are.
+    if (game.city.market) {
+      const mk = game.city.market.bounds;
+      context.fillStyle = '#c97e2c';
+      context.fillRect(x0 + mk.x * scale, y0 + mk.y * scale, mk.w * scale, mk.h * scale);
+    }
+    // Spike strips on the minimap: short red ticks across the road, gone when the heat dies.
+    context.strokeStyle = '#d0342c';
+    context.lineWidth = 1.5;
+    for (const strip of game.police.strips || []) {
+      const dx = Math.cos(strip.angle);
+      const dy = Math.sin(strip.angle);
+      context.beginPath();
+      context.moveTo(x0 + (strip.x - dx * 20) * scale, y0 + (strip.y - dy * 20) * scale);
+      context.lineTo(x0 + (strip.x + dx * 20) * scale, y0 + (strip.y + dy * 20) * scale);
+      context.stroke();
     }
     // The elevated loop: a pale rounded square over the middle avenues, and the train
     // itself as a bright teal dot forever circling it.
@@ -2441,7 +2613,7 @@ export function createRenderer(canvas) {
       text(objective, 32, VIEW_H - 30, 16, '#ffffff', 'left', 600);
     }
     // Controls hint, bottom-right.
-    text('WASD move · Mouse aim · Click shoot · E car · F punch · H horn · P pause', VIEW_W - 16, VIEW_H - 18, 13, 'rgba(255,255,255,0.6)', 'right');
+    text('WASD move · Mouse aim · Click shoot · E car · F punch · H/B horn · P pause', VIEW_W - 16, VIEW_H - 18, 13, 'rgba(255,255,255,0.6)', 'right');
     drawMinimap(game);
     // Dialogue box.
     if (game.dialogue) {
@@ -2526,7 +2698,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Twenty story missions, an elevated railway circling downtown, a five-star helicopter, and a prop plane over the airfield.',
+        'Twenty-two story missions, a night market district under string lights, police spike strips at four stars, an elevated railway circling downtown, a five-star helicopter, and a prop plane over the airfield.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',
@@ -2549,7 +2721,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_DONE) {
       const stats = game.missions.stats;
       drawPanel('SOLMAR IS YOURS', [
-        'All twenty jobs done. Rico Vega owns this city now.',
+        'All twenty-two jobs done. Rico Vega owns this city now.',
         `Final cash: $${game.cash.toLocaleString('en-US')} · Races won: ${stats.races} · Deliveries: ${stats.deliveries}`,
       ], 'Press Enter to keep roaming free', '#7fd069');
     }

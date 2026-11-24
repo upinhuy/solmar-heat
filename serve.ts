@@ -30,7 +30,7 @@ const hostIndex = args.indexOf('--host');
 const host = hostIndex === -1 ? '127.0.0.1' : String(args[hostIndex + 1] || '127.0.0.1');
 
 // The scene names game/src/shots.js stages behind ?shot=, for the /__version health check.
-const SHOTS = ['start', 'drive', 'chase', 'mission', 'showdown', 'skyline', 'rain', 'port', 'heli', 'beach', 'train', 'storm', 'airport'];
+const SHOTS = ['start', 'drive', 'chase', 'mission', 'showdown', 'skyline', 'rain', 'port', 'heli', 'beach', 'train', 'storm', 'airport', 'market', 'spikes'];
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -78,7 +78,7 @@ createServer((request, response) => {
   if (pathname === '/__version') {
     // A one-line health check for scripts and curious players: which game this server
     // serves, which version of it, and which screenshot scenes it can stage, without downloading any of it.
-    const body = JSON.stringify({ game: 'Solmar Heat', version: 'v8', files: 'game/', shots: SHOTS, ok: true });
+    const body = JSON.stringify({ game: 'Solmar Heat', version: 'v9', files: 'game/', shots: SHOTS, ok: true });
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
     response.end(request.method === 'HEAD' ? undefined : body);
     return;

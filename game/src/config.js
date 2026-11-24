@@ -78,6 +78,33 @@ export const STORM = {
   flashDecay: 2.4, // lightning brightness lost per second after the strike
 };
 
+// The night market quarter: a festival district that comes alive after dark — food
+// stalls under string lights, a stage with a band, and crowds that thicken at night.
+// The market's own numbers: how many stalls ring the plaza, how big the crowd gets
+// by day and by night, and how far the market murmur carries.
+export const MARKET = {
+  stalls: 8, // food stalls ringing the plaza
+  crowdDay: 10, // market browsers by day
+  crowdNight: 22, // and by night, when the lanterns are lit
+  spawnEvery: 1.5, // seconds between extra browsers arriving after dark
+  murmurRange: 620, // how far the market's hum carries
+};
+
+// Police spike strips: at four stars and above the PD lays a strip across the road
+// ahead, ahead of the roadblock. A car that crosses one shreds its tyres — speed and
+// grip fall away for a while, the car takes damage and throws tyre smoke — so the
+// player either brakes, swerves around the strip's ends, or pays for the shortcut.
+export const SPIKE = {
+  deployStars: 4, // the heat at which the PD starts laying strips
+  maxStrips: 3, // strips out at once; the PD re-lays as they are used up
+  length: 40, // across the road: shorter than the street is wide, so it can be dodged
+  speedMult: 0.55, // shredded tyres: barely over half speed
+  gripMult: 0.5, // and half the grip, so the car slides wide on every corner
+  duration: 12, // seconds a shredding lasts before the tyres are swapped (off-screen)
+  damage: 12, // the hit itself bends the car a little, on top of the handling loss
+  ahead: 380, // how far ahead of the player the strip is laid
+};
+
 export const CAR = {
   radius: 17,
   length: 46,
@@ -149,6 +176,17 @@ export const COLORS = {
   poolDeep: '#1f7f96',
   resort: ['#e8d8b0', '#dfc9a8', '#cfd8c2', '#e5c1b4', '#d8cf9f', '#c9d4de'],
   plaza: '#7d7468',
+  // The night market quarter: warm stall awnings in eight food-stall colours, lantern
+  // gold, the stage's red curtain over a wooden floor, and the spike strips the PD
+  // lays across the road — a dark band with steel teeth, dulled once they have bitten.
+  marketPlaza: '#8a6a52',
+  stallAwning: ['#e2583e', '#f2a541', '#3e8f6a', '#d94f70', '#4a7fc1', '#e8b23a', '#7a5fb0', '#c96a3b'],
+  lantern: '#ffb84d',
+  stageCurtain: '#a83232',
+  stageFloor: '#7a4a2b',
+  spikeBand: '#2b2b2b',
+  spikeTooth: '#c8ccd2',
+  spikeHit: '#8a8f96',
   race: '#3fd06a',
   courier: '#39c2d7',
   hostile: '#a03a5e',

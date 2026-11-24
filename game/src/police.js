@@ -3,7 +3,10 @@
 // when the player stays out of sight. The chase is smarter than a beeline: cars aim where
 // the player is heading, not where he is, fresh units prefer to appear ahead of a driver,
 // and at four stars the PD parks roadblocks across the road ahead — two cars, and three
-// at the full five stars. At five stars, once you have blown through one roadblock, the
+// at the full five stars — and ahead of the roadblock it lays a spike strip across the
+// road: a car that crosses one shreds its tyres and limps away slow and sliding, so the
+// player either brakes, swerves around the strip's ends, or pays for the shortcut.
+// At five stars, once you have blown through one roadblock, the
 // PD throws a second one across your road while the heat lasts — and puts a helicopter
 // over the chase: no gun, no arrest, just a searchlight that refuses to lose you until
 // the heat drops. The helicopter stays grounded in a thunderstorm, though — the PD does
@@ -12,9 +15,9 @@
 // pursuit bares its teeth: an extra car joins and fresh units roll in faster. Crimes raise
 // the stars; hiding lowers them. The pursuit is hard on the cruisers, too: a unit that
 // piles into a building comes away bent, and a bent cruiser smokes like any other wreck.
-import { COP, WANTED_MAX, WORLD } from './config.js';
+import { COP, SPIKE, WANTED_MAX, WORLD } from './config.js';
 import { angleDelta, chance, clamp, distance } from './random.js';
-import { driveCar, makeCar } from './vehicles.js';
+import { driveCar, makeCar, spikeCheck } from './vehicles.js';
 import { gridTarget, nearestRoadPoint, randomRoadPoint } from './world.js';
 
 export function createPolice() {
@@ -28,6 +31,7 @@ export function createPolice() {
     sirenOn: false,
     roadblockSet: false, // a roadblock is out for the current heat level
     roadblockWaves: 0, // roadblocks thrown at this heat so far (a second wave only at 5 stars)
+    strips: [], // spike strips laid across the road ahead of roadblocks: {x, y, angle, hit}
     heli: null, // the five-star helicopter: {x, y, angle, rotor, leaving} while it hunts
   };
 }
@@ -114,6 +118,18 @@ function setRoadblock(game) {
     car.roadblock = true;
     police.cars.push(car);
   }
+  // Ahead of the roadblock, the PD lays a spike strip across the road — 140 units
+  // before the cars, so the player must choose: cross it and shred the tyres, or
+  // swerve around its ends. At most SPIKE.maxStrips are out at once; a spent strip
+  // stays on the road, flattened, until the heat dies.
+  if (police.strips.length < SPIKE.maxStrips) {
+    const stripAhead = {
+      x: clamp(player.x + Math.cos(heading) * SPIKE.ahead, 80, WORLD - 80),
+      y: clamp(player.y + Math.sin(heading) * SPIKE.ahead, 80, WORLD - 80),
+    };
+    const stripSpot = nearestRoadPoint(stripAhead.x, stripAhead.y);
+    police.strips.push({ x: stripSpot.x, y: stripSpot.y, angle: onVertical ? 0 : Math.PI / 2, hit: false });
+  }
   police.roadblockSet = true;
   police.roadblockWaves += 1;
 }
@@ -136,6 +152,7 @@ export function updatePolice(game, dt, events) {
     police.sirenOn = false;
     police.roadblockSet = false;
     police.roadblockWaves = 0;
+    police.strips = []; // no heat, no strips: the road is swept clean
     police.heli = null; // no heat, no bird: it is simply gone
     return null;
   }
@@ -282,6 +299,11 @@ export function updatePolice(game, dt, events) {
     if (impact > 220) {
       events.push({ type: 'crash', x: car.x, y: car.y });
     }
+    // A chasing cruiser can shred its own tyres on a strip laid for the player —
+    // the PD's trap does not spare its own. The timer ticks down here; driveCar
+    // reads it every step, so a spiked cruiser falls back on its own.
+    if (car.spikeTimer > 0) car.spikeTimer -= dt;
+    spikeCheck(game, car, events);
   }
 
   // Foot cops run at the player; holding them close for long enough ends in an arrest.

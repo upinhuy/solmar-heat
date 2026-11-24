@@ -22,7 +22,7 @@ const MUTE = new Set(['KeyM']);
 const NEW = new Set(['KeyN']);
 const PUNCH = new Set(['KeyF']);
 const RESTART = new Set(['KeyR']);
-const HORN = new Set(['KeyH']);
+const HORN = new Set(['KeyH', 'KeyB']); // H, or B for a left hand that is already on WASD
 const LIGHTS = new Set(['KeyL']);
 
 export function createInput(canvas) {

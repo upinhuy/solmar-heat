@@ -15,7 +15,7 @@
 // Plus the helpers
 // the rest of the game uses to ask the city questions (is this a road? does this circle
 // hit a building? where is the nearest street?). Nothing here draws or listens to input.
-import { AWNING_COLORS, BEACH_SIGN_NAMES, COLORS, FIRST_ROAD, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, UMBRELLA_COLORS, WORLD } from './config.js';
+import { AWNING_COLORS, BEACH_SIGN_NAMES, COLORS, FIRST_ROAD, MARKET, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, UMBRELLA_COLORS, WORLD } from './config.js';
 import { clamp, intRange, pick, range, vary } from './random.js';
 
 export const ROADS = [];
@@ -62,6 +62,14 @@ export const AIRPORT_DRUMS = [{ x: 1548, y: 22 }, { x: 1548, y: 32 }, { x: 1558,
 // The skyline skips the airfield's stretch of the north edge, so no tower ever stands on
 // the runway: the strip the towers leave clear, in world x.
 export const AIRPORT_SKYLINE_GAP = { x0: 1440, x1: 2320 };
+
+// The night market quarter: one downtown block (ix 4, iy 3) given over to an evening
+// festival. The plaza sits on the warm paving the market sets out, the food stalls
+// ring its edges, and the stage anchors the north side — the meet point for the market
+// story mission, where the contact waits by the curtain.
+export const MARKET_BOUNDS = { x: 1400, y: 1100, w: 200, h: 200 };
+export const MARKET_MEET = { x: 1500, y: 1160 };
+export const MARKET_STAGE = { x: 1455, y: 1100, w: 90, h: 40 };
 
 // Gantry cranes are painted per crane, not all one grey: harbour colours, rust and steel.
 const CRANE_COLORS = ['#39424e', '#8a5a2c', '#54626e', '#74403a'];
@@ -295,6 +303,8 @@ export function createCity(random) {
   const kiosks = []; // beach district: little roofed stalls along the top of the sand
   const lifeguards = []; // beach district: two lifeguard towers watching the water
   const skyline = []; // distant towers along the north and east edges, outside the streets
+  const marketLights = []; // the night market's string-light spans, post to post across the plaza
+  const marketPosts = []; // the poles the market's string lights hang from
   const signals = []; // a traffic signal at every intersection, phased off the shared cycle
   // The viaduct's pillars: a post under the track every 120 units, standing in the
   // middle of the avenues the loop rides. Pure geometry — no randomness — so the
@@ -376,6 +386,71 @@ export function createCity(random) {
         for (let t = 0; t < 3; t += 1) {
           props.push({ x: bx + 8 + random() * (bw - 30), y: by + 8 + random() * 26, w: 13, h: 13, kind: 'barrel', angle: 0 });
         }
+        continue;
+      }
+      // The night market quarter — block ix 4, iy 3, downtown: the block is given over
+      // to an evening festival instead of a building. A stage anchors the north side
+      // (solid, like any building, with a red curtain and a MERCADO sign), eight food
+      // stalls ring the plaza's edges (solid too — each one a counter with a striped
+      // awning in its own colour and a sign over the goods), and string lights cross
+      // the plaza from post to post. The stalls and the stage live in the buildings
+      // list, so cars collide with them; the light spans live in the market record.
+      if (ix === 4 && iy === 3) {
+        buildings.push({
+          x: MARKET_STAGE.x,
+          y: MARKET_STAGE.y,
+          w: MARKET_STAGE.w,
+          h: MARKET_STAGE.h,
+          color: COLORS.stageFloor,
+          roof: COLORS.stageCurtain,
+          height: 6,
+          sign: { text: 'MERCADO', color: '#ffb84d' },
+          awning: null,
+          gear: 0,
+          tank: false,
+          kind: 'stage',
+        });
+        const stallSpots = [
+          { x: bx + 6, y: by + 60, label: 'TACOS' },
+          { x: bx + 6, y: by + 110, label: 'RAMEN' },
+          { x: bx + 6, y: by + 160, label: 'DUMPLINGS' },
+          { x: bx + bw - 40, y: by + 60, label: 'SWEETS' },
+          { x: bx + bw - 40, y: by + 110, label: 'JUICE' },
+          { x: bx + bw - 40, y: by + 160, label: 'BBQ' },
+          { x: bx + 60, y: by + bh - 28, label: 'NOODLES' },
+          { x: bx + 120, y: by + bh - 28, label: 'COFFEE' },
+        ];
+        stallSpots.forEach((spot, i) => {
+          const awning = COLORS.stallAwning[i % COLORS.stallAwning.length];
+          buildings.push({
+            x: spot.x,
+            y: spot.y,
+            w: 34,
+            h: 22,
+            color: '#6b4a2f',
+            roof: awning,
+            height: 5,
+            sign: { text: spot.label, color: '#fff6e0' },
+            awning,
+            gear: 0,
+            tank: false,
+            kind: 'stall',
+            label: spot.label,
+          });
+        });
+        // Six posts: the plaza's corners and two mid-plaza poles. The spans run across
+        // the plaza in both directions and along its north and south edges, so the light
+        // hangs over the whole crowd.
+        for (const [px, py] of [[1430, 1150], [1570, 1150], [1430, 1270], [1570, 1270], [1500, 1150], [1500, 1270]]) {
+          marketPosts.push({ x: px, y: py });
+        }
+        const span = (a, b) => marketLights.push({ x1: marketPosts[a].x, y1: marketPosts[a].y, x2: marketPosts[b].x, y2: marketPosts[b].y });
+        span(0, 1); span(2, 3); span(0, 2); span(1, 3); span(0, 3); span(1, 2); span(4, 5);
+        // Crates and a bin by the stalls: the market's own clutter, breakable like the
+        // rest of the city's street props.
+        props.push({ x: bx + 48, y: by + 52, w: 20, h: 20, kind: 'crate', angle: 0.2 });
+        props.push({ x: bx + bw - 66, y: by + bh - 52, w: 20, h: 20, kind: 'crate', angle: -0.15 });
+        props.push({ x: bx + bw - 16, y: by + 46, w: 10, h: 10, kind: 'bin', angle: 0 });
         continue;
       }
       // The four blocks behind the beach — the southern row, west of centre — are the
@@ -560,7 +635,7 @@ export function createCity(random) {
     skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
     sy += w + 4 + random() * 22;
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail, airport };
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail, airport, market: { bounds: MARKET_BOUNDS, stage: MARKET_STAGE, meet: MARKET_MEET, posts: marketPosts, lights: marketLights } };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

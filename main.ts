@@ -5,7 +5,7 @@
 // summary the judge reads, with the vendored make.fun library.
 //
 // Solmar Heat: an original open-world crime game. Explore the city of Solmar on foot and by
-// car, steal cars, run twenty story missions for Mara Solis — getaway driving, a timed hot
+// car, steal cars, run twenty-two story missions for Mara Solis — getaway driving, a timed hot
 // delivery, a tail, a heist, a convoy job, a harbour showdown against rivals who shoot back,
 // a marked-car swap, a timed night run, a truck heist in the industrial port, a limousine
 // dash against the clock, a rush-hour coupe run through the downtown lights, a shootout
@@ -13,12 +13,16 @@
 // district, a timed coast-road run to a drop at the far end of the beach, a courier
 // handoff under the elevated line's north station that turns into a timed getaway, an
 // ambush under the viaduct where a rival crew fights for a case, a storm-timed getaway in
-// a marked car from the airfield, an ambush over a cash case on the runway itself, and a
+// a marked car from the airfield, an ambush over a cash case on the runway itself, a
+// firefight in the night market quarter — food stalls, string lights and a band on the
+// stage — and a four-star getaway down Spike Alley, where the police lay spike strips
+// across the road ahead and a car that crosses one shreds its tyres, and a
 // five-star finale — plus repeatable street races
 // and courier runs that pay generously on the side. Earn cash and stay ahead of the Solmar
 // police as the wanted level rises: the chase cars aim where you are heading, three stars
 // brings an extra car and a faster response, at four stars the
-// PD parks roadblocks across the road, and at five stars a police helicopter hangs over
+// PD parks roadblocks across the road and lays spike strips ahead of them — a car that
+// crosses one loses half its speed and half its grip until the tyres are swapped — and at five stars a police helicopter hangs over
 // the chase with its searchlight on you — unless a thunderstorm has rolled in, when the
 // helicopter stays grounded and the pursuit cars hold back to 85% of their pace on the
 // wet roads. The traffic, meanwhile, obeys the city's
