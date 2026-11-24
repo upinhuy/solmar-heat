@@ -1,18 +1,21 @@
-// A tiny static server for game/ (Node 22, standard library only), so an entry can be played
-// locally without a build step: `node serve.ts` serves game/ on http://localhost:8080.
-// It sends the MIME types a browser game needs, refuses any path outside game/, answers HEAD
-// requests without a body, and otherwise does nothing clever: this is a development
-// convenience, not a web server for the internet. `--port N` and `--host H` pick where it
-// listens (127.0.0.1 by default, so it stays on your own machine unless you ask otherwise).
-// One exception to "nothing clever": GET /__version answers a small JSON health check
-// naming the game, so a script can tell this server from any other on the machine.
-// Every file gets a weak ETag from its size and mtime, so a browser reload during
-// development can revalidate cheaply: an If-None-Match that matches gets a 304. The
-// cache-control is no-cache (revalidate every time), not no-store — no-store would forbid
-// the browser from keeping the file at all and make the ETag pointless. Responses also
-// carry two small hardening headers — nosniff, so a browser never second-guesses the
-// declared content type, and a no-referrer policy, so a click out of a locally served
-// page leaks nothing about it — cheap insurance even for a development server.
+// A small static server for game/ (Node 22, standard library only), so an entry can be
+// played locally without a build step: `node serve.ts` serves game/ on http://localhost:8080.
+// It answers the MIME types a browser game needs, refuses any path outside game/, answers
+// HEAD requests with headers and no body, and otherwise does nothing clever: this is a
+// development convenience, not a web server for the internet. `--port N` and `--host H`
+// pick where it listens (127.0.0.1 by default, so it stays on your own machine unless you
+// ask otherwise).
+// Two exceptions to "nothing clever": GET /__version answers a small JSON health check
+// naming the game, so a script can tell this server from any other on the machine — and
+// it also lists the ?shot= scene names the game stages, so a screenshot script can ask
+// the server what it can photograph before it starts a browser. Every file gets a weak
+// ETag from its size and mtime, so a browser reload during development can revalidate
+// cheaply: an If-None-Match that matches gets a 304. The cache-control is no-cache
+// (revalidate every time), not no-store — no-store would forbid the browser from keeping
+// the file at all and make the ETag pointless. Responses also carry two small hardening
+// headers — nosniff, so a browser never second-guesses the declared content type, and a
+// no-referrer policy, so a click out of a locally served page leaks nothing about it —
+// cheap insurance even for a development server.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -25,6 +28,9 @@ const requested = portIndex === -1 ? 8080 : Number(args[portIndex + 1]);
 const port = Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 8080;
 const hostIndex = args.indexOf('--host');
 const host = hostIndex === -1 ? '127.0.0.1' : String(args[hostIndex + 1] || '127.0.0.1');
+
+// The scene names game/src/shots.js stages behind ?shot=, for the /__version health check.
+const SHOTS = ['start', 'drive', 'chase', 'mission', 'showdown', 'skyline', 'rain', 'port', 'heli', 'beach', 'train', 'storm', 'airport'];
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -71,8 +77,8 @@ createServer((request, response) => {
   if (pathname.endsWith('/')) pathname += 'index.html';
   if (pathname === '/__version') {
     // A one-line health check for scripts and curious players: which game this server
-    // serves, without downloading any of it.
-    const body = JSON.stringify({ game: 'Solmar Heat', files: 'game/', ok: true });
+    // serves, and which screenshot scenes it can stage, without downloading any of it.
+    const body = JSON.stringify({ game: 'Solmar Heat', files: 'game/', shots: SHOTS, ok: true });
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
     response.end(request.method === 'HEAD' ? undefined : body);
     return;

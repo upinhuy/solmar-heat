@@ -1,6 +1,8 @@
 // WebAudio sounds, drawn in code: no audio files. Everything is guarded, so the game also
 // runs in a headless screenshot where no sound device exists. Sound only starts after the
-// player's first gesture, which is when browsers allow an AudioContext.
+// player's first gesture, which is when browsers allow an AudioContext. The storm has its
+// own voice here: a lightning strike cracks and then rumbles away, and the airfield's
+// little prop plane drones overhead on its circuit, swelling as it passes.
 export function createAudio() {
   let context = null;
   let master = null;
@@ -20,6 +22,9 @@ export function createAudio() {
   let waveLfo = null;
   let trainSource = null;
   let trainGain = null;
+  let planeSource = null;
+  let planeGain = null;
+  let planeLfo = null;
   let lastThunder = 0;
   let muted = false;
 
@@ -134,6 +139,45 @@ export function createAudio() {
       }
       trainGain.gain.setTargetAtTime(closeness * 0.055, context.currentTime, 0.25);
     },
+    /** The airfield's prop plane: a light drone of looped noise, chopped at propeller
+     * speed so the putter of the engine sits under the chase, whose loudness follows
+     * how close the aircraft is (0 = the far side of its circuit, silent). Call every
+     * frame; it swells as the plane lifts off over the north road and falls away as
+     * it circles the far blocks. */
+    plane(closeness) {
+      if (closeness <= 0) {
+        if (planeGain) planeGain.gain.setTargetAtTime(0, context.currentTime, 0.3);
+        return;
+      }
+      if (!ensure()) return;
+      if (!planeSource) {
+        planeSource = context.createBufferSource();
+        planeSource.buffer = noiseBuffer;
+        planeSource.loop = true;
+        const filter = context.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 320;
+        filter.Q.value = 0.8;
+        const chop = context.createGain();
+        chop.gain.value = 0.6;
+        planeLfo = context.createOscillator();
+        planeLfo.type = 'sine';
+        planeLfo.frequency.value = 13;
+        const lfoGain = context.createGain();
+        lfoGain.gain.value = 0.4;
+        planeLfo.connect(lfoGain);
+        lfoGain.connect(chop.gain);
+        planeGain = context.createGain();
+        planeGain.gain.value = 0;
+        planeSource.connect(filter);
+        filter.connect(chop);
+        chop.connect(planeGain);
+        planeGain.connect(master);
+        planeSource.start();
+        planeLfo.start();
+      }
+      planeGain.gain.setTargetAtTime(0.012 + closeness * 0.035, context.currentTime, 0.4);
+    },
     /** Cash earned: two bright chimes. */
     cash() {
       tone(880, 0.12, 'sine', 0.25);
@@ -193,6 +237,14 @@ export function createAudio() {
         lastThunder = now;
         noiseBurst(1.4, 180, 0.16);
       }
+    },
+    /** A lightning strike's thunder: a sharp crack as the bolt lands, then a long low
+     * rumble that rolls away, with a second fainter roll after it — the sound the
+     * screen flash is the picture of. Call once per strike, from the thunder event. */
+    thunder() {
+      noiseBurst(0.18, 2400, 0.5);
+      noiseBurst(2.2, 120, 0.4);
+      setTimeout(() => noiseBurst(1.2, 90, 0.2), 350);
     },
     /** The engine hum: a sawtooth whose pitch and loudness follow speed. Call every frame. */
     engine(speedRatio) {

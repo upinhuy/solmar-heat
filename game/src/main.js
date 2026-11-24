@@ -3,19 +3,22 @@
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown|skyline|
-// rain|port|heli|beach|train (with &seed=N) stages that scene instead of running the loop, paints it
+// rain|port|heli|beach|train|storm|airport (with &seed=N) stages that scene instead of running the loop, paints it
 // twice and sets window.__shotReady for a screenshot. The heli scene is the five-star
 // night chase: roadblocks on the ground, the police helicopter's searchlight overhead.
 // The beach scene is the golden-hour cruise along the coast road, the resort district
 // on one side and the sand and sea on the other. The train scene rides the north avenue
-// at dusk under the elevated line, the three-car train ahead with its windows lit.
+// at dusk under the elevated line, the three-car train ahead with its windows lit. The
+// storm scene is a three-star night chase in a thunderstorm: lightning over downtown,
+// the streets darker, the neon doubled in the wet. The airport scene watches the prop
+// plane lift off the runway at golden hour, the hangar and the north road below it.
 import { STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
 import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_BUSTED, SCREEN_DONE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED } from './render.js';
 import { HIDEOUT, createMissions } from './missions.js';
-import { trainPointAt } from './world.js';
+import { airportPointAt, trainPointAt } from './world.js';
 import { stageShot } from './shots.js';
 
 /** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
@@ -68,6 +71,7 @@ function runGame() {
       else if (event.type === 'punch') audio.punch();
       else if (event.type === 'crash') audio.crash();
       else if (event.type === 'smash') audio.smash();
+      else if (event.type === 'thunder') audio.thunder();
       else if (event.type === 'checkpoint') {
         audio.checkpoint();
         announce('Checkpoint! Keep going.');
@@ -190,6 +194,15 @@ function runGame() {
           const dTrain = Math.hypot(head.x - game.player.x, head.y - game.player.y);
           audio.train(Math.max(0, Math.min(1, 1 - dTrain / 620)));
         }
+        // The airfield plane follows the player too: its drone swells as the aircraft
+        // lifts off over the north road and falls away as it circles the far blocks.
+        // On the ground it is a quieter taxi hum; in the air, the full drone.
+        if (game.plane) {
+          const pp = airportPointAt(game.plane.s);
+          const dPlane = Math.hypot(pp.x - game.player.x, pp.y - game.player.y);
+          const airFactor = game.plane.alt > 0 ? 1 : 0.4;
+          audio.plane(Math.max(0, Math.min(1, 1 - dPlane / 700)) * airFactor);
+        }
         // The sea follows the player too: silent inland, a slow wash near the shore —
         // closest along the beach, where the sand runs down to the water.
         audio.waves(Math.max(0, Math.min(1, (game.player.y - 1750) / 560)));
@@ -199,6 +212,7 @@ function runGame() {
           audio.siren(false);
           audio.heli(false);
           audio.train(0);
+          audio.plane(0);
           announce('Busted by the Solmar PD.');
           break;
         }
@@ -208,6 +222,7 @@ function runGame() {
           audio.siren(false);
           audio.heli(false);
           audio.train(0);
+          audio.plane(0);
           announce('Wasted.');
           break;
         }

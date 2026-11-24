@@ -13,7 +13,9 @@
 // viaduct on pillars with pale rails, two canopied stations, and a three-car train in a
 // teal-and-cream livery circling above the traffic, its shadow sliding along the street
 // below — drawn over the ground traffic, because everything on the street passes under
-// it. Cars are drawn per body shape — sedan,
+// it. Along the north edge, east of centre, runs the airfield: a marked runway with amber
+// edge lights and a hangar, and a little prop plane flying touch-and-go circuits over the
+// northern blocks, its shadow sliding over the rooftops. Cars are drawn per body shape — sedan,
 // hatchback, pickup, van, sport, limousine and motorcycle — with shading, glass
 // reflections, wheels, mirrors and lights; taxis wear a roof sign, police a flashing
 // light bar, and a bent car wears its damage: scuffed nose corners, a cracked
@@ -23,11 +25,14 @@
 // disc spinning above a dark PD body. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
 // the view; at night the street lamps pool light on the asphalt, neon spills onto the
 // sidewalks and reflects in wet streaks, windows light up floor by floor and every car
-// throws a headlight cone. When it rains the streets shine and the neon doubles. Canvas
+// throws a headlight cone. When it rains the streets shine and the neon doubles. When a
+// thunderstorm rolls in, the streets go darker still, the neon burns harder in the wet,
+// and lightning strikes: a jagged bolt over the city and a white flash across the whole
+// view, with thunder rolling after it. Canvas
 // shapes and text, no assets.
-import { COLORS, FIRST_ROAD, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
+import { COLORS, FIRST_ROAD, PLANE, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
-import { BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, TRAIN_LOOP_LENGTH, WATER_Y, signalPhase, trainPointAt } from './world.js';
+import { AIRPORT_RUNWAY, BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, TRAIN_LOOP_LENGTH, WATER_Y, airportPointAt, signalPhase, trainPointAt } from './world.js';
 import { hash01, lerp } from './random.js';
 
 export const SCREEN_TITLE = 'title';
@@ -177,6 +182,53 @@ export function createRenderer(canvas) {
       context.arc(x + 3.5, y + 3.5 + i * 5.5, 1.9, 0, Math.PI * 2);
       context.fill();
       context.restore();
+    }
+    context.globalAlpha = 1;
+  }
+
+  /** The airfield on the north edge: a dark asphalt strip with a dashed centreline,
+   * white threshold bars at each end, amber edge lights that glow after dark, and the
+   * airfield's name painted on the strip — the runway the little prop plane rolls down
+   * and lifts off from, over and over. */
+  function drawAirport(game, cam, dark) {
+    const r = AIRPORT_RUNWAY;
+    const rx = cam.x + r.x;
+    const ry = cam.y + r.y;
+    if (rx + r.w < -80 || rx > VIEW_W + 80 || ry + r.h < -80 || ry > VIEW_H + 80) return;
+    // The strip: dark asphalt with a paler shoulder line top and bottom.
+    context.fillStyle = COLORS.runway;
+    context.fillRect(rx, ry, r.w, r.h);
+    context.fillStyle = 'rgba(255,255,255,0.16)';
+    context.fillRect(rx, ry, r.w, 2);
+    context.fillRect(rx, ry + r.h - 2, r.w, 2);
+    // Threshold bars at each end: four white bars across the strip.
+    context.fillStyle = COLORS.runwayLine;
+    for (const endX of [rx + 8, rx + r.w - 8]) {
+      for (let i = 0; i < 4; i += 1) {
+        context.fillRect(endX - 3, ry + 5 + i * 9, 6, 5);
+      }
+    }
+    // The dashed centreline down the middle of the strip.
+    for (let x = rx + 26; x < rx + r.w - 26; x += 34) {
+      context.fillRect(x, ry + r.h / 2 - 2, 20, 4);
+    }
+    // The name painted on the strip, read from the north road.
+    text('SOLMAR AIR', rx + r.w / 2, ry + r.h / 2 + 12, 13, 'rgba(232,232,232,0.5)', 'center', 800);
+    // Amber edge lights down both sides: dots by day, glowing beads after dark.
+    for (let x = r.x + 14; x <= r.x + r.w - 14; x += 52) {
+      for (const edgeY of [r.y + 4, r.y + r.h - 4]) {
+        context.save();
+        if (dark > 0.1) {
+          context.shadowColor = COLORS.runwayLight;
+          context.shadowBlur = 8 * dark;
+        }
+        context.fillStyle = COLORS.runwayLight;
+        context.globalAlpha = dark > 0.1 ? 1 : 0.55;
+        context.beginPath();
+        context.arc(cam.x + x, cam.y + edgeY, 2.6, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      }
     }
     context.globalAlpha = 1;
   }
@@ -337,7 +389,7 @@ export function createRenderer(canvas) {
       }
     }
     // Wet streets: after dark, and whenever it rains, the asphalt takes a pale sheen —
-    // the base the lamp pools and neon reflections sit on.
+    // the base the lamp pools and neon reflections sit on. A thunderstorm wets it hardest.
     const wet = Math.max(game.weather && game.weather.rain > 0 ? 0.9 : 0, dark > 0.2 ? 0.55 : 0);
     if (wet > 0) {
       context.fillStyle = COLORS.wetSheen;
@@ -348,6 +400,8 @@ export function createRenderer(canvas) {
       }
       context.globalAlpha = 1;
     }
+    // The airfield's runway, laid over the grass strip on the north edge.
+    drawAirport(game, cam, dark);
     // Zebra crossings at the intersections in view.
     context.fillStyle = COLORS.crosswalk;
     const half = ROAD_WIDTH / 2;
@@ -745,6 +799,22 @@ export function createRenderer(canvas) {
         context.beginPath();
         context.arc(tx, ty - 2, 8, 0, Math.PI * 2);
         context.fill();
+      }
+      // The hangar's door: a wide dark opening on its south face, with a pale frame —
+      // the plane's home, and the pilot's shelter from the storm.
+      if (b.kind === 'hangar') {
+        context.fillStyle = '#2b2f36';
+        context.fillRect(bx + b.w / 2 - 34, by + b.h - 2, 68, faceH - 1);
+        context.strokeStyle = 'rgba(232,232,232,0.55)';
+        context.lineWidth = 1.5;
+        context.strokeRect(bx + b.w / 2 - 34, by + b.h - 2, 68, faceH - 1);
+        context.strokeStyle = 'rgba(232,232,232,0.3)';
+        for (let d = -20; d <= 20; d += 10) {
+          context.beginPath();
+          context.moveTo(bx + b.w / 2 + d, by + b.h - 2);
+          context.lineTo(bx + b.w / 2 + d, by + b.h + faceH - 3);
+          context.stroke();
+        }
       }
       context.fillStyle = 'rgba(255,255,255,0.10)';
       context.fillRect(bx + 7, by + 7, b.w - 14, 3);
@@ -1710,9 +1780,157 @@ export function createRenderer(canvas) {
     }
   }
 
+  /** The airfield's prop plane, drawn last so it rides over the whole city: a ground
+   * shadow at its true position on the runway or the rooftops below, and the plane
+   * itself lifted up and north of that shadow by its altitude — the gap between the two
+   * is what sells the height, the same trick the train and the helicopter use. A white
+   * fuselage with a blue stripe and a red tail, a spinning prop blur at the nose, and
+   * nav lights — red on the left wingtip, green on the right, a white strobe blinking
+   * on the tail. On the ground it sits on the runway; in the air it grows a touch with
+   * altitude, the way a near thing does. */
+  function drawPlane(game, cam, dark) {
+    const p = game.plane;
+    if (!p) return;
+    const pos = airportPointAt(p.s);
+    if (pos.x < -cam.x - 140 || pos.x > -cam.x + VIEW_W + 140 || pos.y < -cam.y - 140 || pos.y > -cam.y + VIEW_H + 140) return;
+    const alt = p.alt || 0;
+    const lift = alt * PLANE.altDraw;
+    const scale = 1 + alt * 0.15;
+    // The ground shadow, at the plane's true position, shrinking as it climbs.
+    context.fillStyle = `rgba(0,0,0,${0.28 - alt * 0.14})`;
+    context.beginPath();
+    context.ellipse(cam.x + pos.x + 6, cam.y + pos.y + 8, 24 * (1 - alt * 0.25), 9 * (1 - alt * 0.25), pos.angle, 0, Math.PI * 2);
+    context.fill();
+    context.save();
+    context.translate(cam.x + pos.x, cam.y + pos.y - lift);
+    context.rotate(pos.angle);
+    context.scale(scale, scale);
+    // The wings: one long bar across the fuselage, with a darker root.
+    context.fillStyle = COLORS.planeBody;
+    rr(-8, -26, 16, 52, 4);
+    context.fill();
+    context.fillStyle = 'rgba(0,0,0,0.12)';
+    context.fillRect(-8, -8, 16, 5);
+    context.fillRect(-8, 3, 16, 5);
+    // The tailplane: a smaller bar at the back.
+    context.fillStyle = COLORS.planeTail;
+    rr(-24, -13, 8, 26, 3);
+    context.fill();
+    // The fuselage: a white body with a blue stripe down each flank and a glass nose.
+    context.fillStyle = COLORS.planeBody;
+    rr(-26, -7, 52, 14, 7);
+    context.fill();
+    context.fillStyle = COLORS.planeStripe;
+    context.fillRect(-24, -2.5, 48, 5);
+    context.fillStyle = 'rgba(20,30,44,0.9)';
+    context.beginPath();
+    context.ellipse(18, 0, 7, 5, 0, 0, Math.PI * 2);
+    context.fill();
+    // The propeller: a pale spinning disc at the nose, with two blade lines sweeping
+    // through it on the plane's own clock.
+    context.save();
+    context.translate(28, 0);
+    context.fillStyle = 'rgba(200,210,220,0.16)';
+    context.beginPath();
+    context.arc(0, 0, 11, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = 'rgba(220,228,238,0.35)';
+    context.lineWidth = 2;
+    const pa = (game.time * 31) % Math.PI;
+    context.beginPath();
+    context.moveTo(Math.cos(pa) * -10, Math.sin(pa) * -10);
+    context.lineTo(Math.cos(pa) * 10, Math.sin(pa) * 10);
+    context.moveTo(Math.cos(pa + Math.PI / 2) * -10, Math.sin(pa + Math.PI / 2) * -10);
+    context.lineTo(Math.cos(pa + Math.PI / 2) * 10, Math.sin(pa + Math.PI / 2) * 10);
+    context.stroke();
+    context.fillStyle = '#3a3a3a';
+    context.beginPath();
+    context.arc(0, 0, 2.4, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+    // Nav lights: red on the left wingtip, green on the right, and a white strobe on
+    // the tail that blinks on the plane's own clock.
+    context.fillStyle = '#ff5040';
+    context.beginPath();
+    context.arc(-2, -26, 2.2, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = '#3fd06a';
+    context.beginPath();
+    context.arc(-2, 26, 2.2, 0, Math.PI * 2);
+    context.fill();
+    const strobe = Math.sin(game.time * 6) > 0.6;
+    context.save();
+    if (strobe) {
+      context.shadowColor = '#ffffff';
+      context.shadowBlur = 8;
+    }
+    context.fillStyle = strobe ? '#ffffff' : 'rgba(255,255,255,0.35)';
+    context.beginPath();
+    context.arc(-25, 0, 2, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+    // At night the landing light throws a pale cone ahead of the nose.
+    if (dark > 0.15) {
+      context.fillStyle = 'rgba(255,240,190,0.08)';
+      context.beginPath();
+      context.moveTo(26, -3);
+      context.lineTo(26 + 70, -16);
+      context.lineTo(26 + 70, 16);
+      context.lineTo(26, 3);
+      context.closePath();
+      context.fill();
+    }
+    context.restore();
+  }
+
+  /** A lightning bolt during a thunderstorm: a jagged white-blue stroke from the sky
+   * down to the strike point the weather picked, glowing while the flash lasts. The
+   * jaggedness is seeded off the strike, so the same bolt keeps its shape while it
+   * flickers — it never redraws itself mid-flash. */
+  function drawLightning(game, cam) {
+    const w = game.weather;
+    if (!w || w.flash <= 0.05) return;
+    const x0 = cam.x + w.boltX;
+    const y0 = cam.y + w.boltY - 300;
+    const x1 = cam.x + w.boltX;
+    const y1 = cam.y + w.boltY;
+    const segs = 9;
+    context.save();
+    context.globalAlpha = Math.min(1, w.flash);
+    context.strokeStyle = COLORS.bolt;
+    context.lineWidth = 3;
+    context.shadowColor = COLORS.bolt;
+    context.shadowBlur = 14;
+    context.beginPath();
+    context.moveTo(x0, y0);
+    for (let i = 1; i < segs; i += 1) {
+      const t = i / segs;
+      const jx = (hash01(Math.round(w.boltSeed), i * 13) - 0.5) * 52;
+      const jy = (hash01(Math.round(w.boltSeed) + 7, i * 29) - 0.5) * 10;
+      context.lineTo(x0 + (x1 - x0) * t + jx, y0 + (y1 - y0) * t + jy);
+    }
+    context.lineTo(x1, y1);
+    context.stroke();
+    // A branch or two off the main stroke, fainter, for the forked look.
+    context.globalAlpha = Math.min(1, w.flash) * 0.55;
+    context.lineWidth = 1.8;
+    context.beginPath();
+    const bx = x0 + (x1 - x0) * 0.55 + (hash01(Math.round(w.boltSeed), 3) - 0.5) * 40;
+    const by = y0 + (y1 - y0) * 0.55;
+    context.moveTo(bx, by);
+    context.lineTo(bx + 34, by + 52);
+    context.moveTo(bx, by);
+    context.lineTo(bx - 30, by + 44);
+    context.stroke();
+    context.restore();
+  }
+
   function drawWorld(game, cam) {
     drawCity(game, cam);
-    const dark = darkness(game.clock);
+    // A thunderstorm darkens the streets beyond the hour's own dark, and the neon
+    // burns harder in the wet — the storm's own light, on top of the night's.
+    const stormDark = game.weather && game.weather.storm > 0 ? 0.16 : 0;
+    const dark = Math.min(0.62, darkness(game.clock) + stormDark);
     const activity = game.missions.activity;
     if (!activity.kind && activity.cooldown <= 0) {
       drawStartIcon(game, cam, RACE_START, COLORS.race, 'RACE');
@@ -1805,18 +2023,30 @@ export function createRenderer(canvas) {
       context.fillRect(cam.x, cam.y, WORLD, WORLD);
       if (dark > 0.12) drawNightLights(game, cam, dark);
     }
+    // Lightning: the bolt over the world, and the white flash across the whole view.
+    if (game.weather && game.weather.flash > 0.05) {
+      drawLightning(game, cam);
+      context.fillStyle = `rgba(223,233,255,${game.weather.flash * 0.26})`;
+      context.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
     // The helicopter flies above the lighting: drawn after the tint, so its searchlight
     // pool burns through the night instead of drowning in it.
     drawHeli(game, cam, dark);
     // The train rides above the lighting too: its lit windows and headlight beam stay
     // bright over the darkened streets below.
     drawTrain(game, cam, dark);
+    // And the plane rides above everything: it is the highest thing in Solmar.
+    drawPlane(game, cam, dark);
   }
 
-  /** After dark: lamp pools, neon spill, light-bar glows and headlight cones, added lightly. */
+  /** After dark: lamp pools, neon spill, light-bar glows and headlight cones, added lightly.
+   * In a thunderstorm the neon burns harder still: the wet streets throw the colours
+   * back twice as far, so the signs smear long reflections down the asphalt. */
   function drawNightLights(game, cam, dark) {
     const vis = visible(cam);
     const raining = game.weather && game.weather.rain > 0;
+    const storm = game.weather && game.weather.storm > 0;
+    const neonBoost = storm ? 1.8 : 1; // the storm doubles the neon's spill on wet streets
     context.save();
     context.globalCompositeOperation = 'lighter';
     for (const l of game.city.lamps) {
@@ -1849,15 +2079,15 @@ export function createRenderer(canvas) {
       if (!b.sign) continue;
       if (b.x > vis.x1 || b.x + b.w < vis.x0 || b.y > vis.y1 || b.y + b.h < vis.y0) continue;
       context.fillStyle = b.sign.color;
-      context.globalAlpha = 0.05 + 0.04 * dark;
+      context.globalAlpha = (0.05 + 0.04 * dark) * neonBoost;
       context.beginPath();
       context.ellipse(cam.x + b.x + b.w / 2, cam.y + b.y + b.h + faceHeight(b) + 9, b.w * 0.42, 10, 0, 0, Math.PI * 2);
       context.fill();
-      context.globalAlpha = 0.10;
+      context.globalAlpha = 0.10 * neonBoost;
       context.beginPath();
       context.arc(cam.x + b.x + b.w / 2, cam.y + b.y + b.h, 15, 0, Math.PI * 2);
       context.fill();
-      context.globalAlpha = 0.06 + 0.05 * dark + rainBoost * 0.06;
+      context.globalAlpha = (0.06 + 0.05 * dark + rainBoost * 0.06) * neonBoost;
       context.beginPath();
       context.ellipse(cam.x + b.x + b.w / 2, cam.y + b.y + b.h + faceHeight(b) + 30 + rainBoost * 16, b.w * 0.3, 17 + rainBoost * 13, 0, 0, Math.PI * 2);
       context.fill();
@@ -1907,6 +2137,20 @@ export function createRenderer(canvas) {
       context.arc(cam.x + k.x, cam.y + k.y, 11, 0, Math.PI * 2);
       context.fill();
     }
+    // The runway's edge lights throw their own amber pools on the strip after dark, so
+    // the airfield reads from the north road the way the lamps read downtown.
+    if (game.city.airport) {
+      const r = game.city.airport.runway;
+      for (let x = r.x + 14; x <= r.x + r.w - 14; x += 104) {
+        for (const edgeY of [r.y + 4, r.y + r.h - 4]) {
+          if (x < vis.x0 || x > vis.x1 || edgeY < vis.y0 || edgeY > vis.y1) continue;
+          context.fillStyle = 'rgba(255,215,106,0.06)';
+          context.beginPath();
+          context.arc(cam.x + x, cam.y + edgeY, 13, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+    }
     // The player stays readable in the dark.
     context.fillStyle = 'rgba(255,230,160,0.06)';
     context.beginPath();
@@ -1955,6 +2199,12 @@ export function createRenderer(canvas) {
     for (const r of game.city.resorts || []) {
       context.fillRect(x0 + r.x * scale, y0 + r.y * scale, r.w * scale, r.h * scale);
     }
+    // The airfield on the north edge: a grey strip where the runway runs.
+    if (game.city.airport) {
+      const r = game.city.airport.runway;
+      context.fillStyle = '#6a6f76';
+      context.fillRect(x0 + r.x * scale, y0 + r.y * scale, r.w * scale, Math.max(2, r.h * scale));
+    }
     // The elevated loop: a pale rounded square over the middle avenues, and the train
     // itself as a bright teal dot forever circling it.
     context.strokeStyle = 'rgba(140,225,232,0.8)';
@@ -1971,6 +2221,19 @@ export function createRenderer(canvas) {
       context.beginPath();
       context.arc(x0 + tp.x * scale, y0 + tp.y * scale, 1.4, 0, Math.PI * 2);
       context.fill();
+    }
+    // The plane on its circuit: a small white dot with a blue ring, over the north edge.
+    if (game.plane) {
+      const pp = airportPointAt(game.plane.s);
+      context.fillStyle = '#ffffff';
+      context.beginPath();
+      context.arc(x0 + pp.x * scale, y0 + pp.y * scale, 2.6, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = COLORS.planeStripe;
+      context.lineWidth = 1.2;
+      context.beginPath();
+      context.arc(x0 + pp.x * scale, y0 + pp.y * scale, 4, 0, Math.PI * 2);
+      context.stroke();
     }
     // Hideout and the side-activity starts.
     context.fillStyle = COLORS.mission;
@@ -2156,7 +2419,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Eighteen story missions, an elevated railway circling downtown, a five-star helicopter.',
+        'Twenty story missions, an elevated railway circling downtown, a five-star helicopter, and a prop plane over the airfield.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',
@@ -2179,7 +2442,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_DONE) {
       const stats = game.missions.stats;
       drawPanel('SOLMAR IS YOURS', [
-        'All eighteen jobs done. Rico Vega owns this city now.',
+        'All twenty jobs done. Rico Vega owns this city now.',
         `Final cash: $${game.cash.toLocaleString('en-US')} · Races won: ${stats.races} · Deliveries: ${stats.deliveries}`,
       ], 'Press Enter to keep roaming free', '#7fd069');
     }

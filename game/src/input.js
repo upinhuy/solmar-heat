@@ -1,10 +1,10 @@
-// Keyboard and pointer input. Held keys give movement and driving; one-shot presses (start,
-// pause, enter a car, mute, restart) are queued as bit flags and taken once by the loop, so
-// a press between two frames is never lost and never counted twice. The canvas also swallows
-// the right-click menu, so a stray click while aiming never interrupts a fight, and the
-// movement keys keep their default page behaviour (scrolling) suppressed. Hiding the tab
-// counts as losing focus too: a key released while the game is unseen must not stay held
-// when the player comes back.
+// Keyboard and pointer input. Held keys give movement and driving; one-shot presses
+// (start, pause, enter a car, mute, restart) are queued as bit flags and taken once by
+// the loop, so a press between two frames is never lost and never counted twice. The
+// canvas also swallows the right-click menu, so a stray click while aiming never
+// interrupts a fight, and the movement keys keep their default page behaviour
+// (scrolling) suppressed. Hiding the tab counts as losing focus too: a key released
+// while the game is unseen must not stay held when the player comes back.
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_ENTER = 4;

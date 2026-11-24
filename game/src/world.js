@@ -4,8 +4,10 @@
 // stacked with shipping containers under gantry cranes. West of the marina the shore turns
 // to a beach resort district: a wide sand beach with umbrellas, loungers, kiosks and
 // lifeguard towers under a second pier, and a row of pastel resort blocks with pools
-// behind the coast road. A distant skyline of towers rings
-// the north and east edges, beyond the streets. Every intersection carries a working
+// behind the coast road. A distant skyline of towers rings the
+// north and east edges, beyond the streets — except where the airfield cuts in: along the
+// north edge, east of centre, a little airfield with a runway, a hangar and a prop plane
+// flying touch-and-go circuits over the northern blocks. Every intersection carries a working
 // traffic signal, phased off one shared cycle, and the traffic obeys it. Over the middle
 // avenues runs the elevated loop line: a concrete viaduct on pillars, following the
 // street centrelines so it never crosses a rooftop, with two stations and a three-car
@@ -41,6 +43,19 @@ export const BEACH_PIER = { x: 742, w: 40, from: 2300, to: 2412 };
 export const BEACH_MEET = { x: 660, y: 2308 }; // on the sand, west of the beach pier
 export const BEACH_DROP = { x: 1250, y: 2304 }; // the east end of the sand, by the last kiosk
 export const COAST_PARK = { x: 430, y: 2206, angle: 0 }; // a kerbside spot on the coast road, facing the beach
+
+// The airfield on the north edge, east of centre: a runway strip between the skyline and
+// the northernmost street, a hangar north of it, and the story's fixed points — the
+// pilot's meet on the grass between runway and road, the marked car kerbside on the north
+// road, and the tarmac point where the rival crew guards its plane.
+export const AIRPORT_RUNWAY = { x: 1480, y: 46, w: 800, h: 42 };
+export const AIRPORT_HANGAR = { x: 1560, y: 6, w: 140, h: 38 };
+export const AIRPORT_MEET = { x: 1630, y: 104 }; // the pilot waits on the grass by the hangar
+export const AIRPORT_CAR = { x: 1780, y: 166, angle: 0 }; // the marked car, kerbside on the north road
+export const AIRSTRIP = { x: 1900, y: 67 }; // the middle of the runway, where the case waits
+// The skyline skips the airfield's stretch of the north edge, so no tower ever stands on
+// the runway: the strip the towers leave clear, in world x.
+export const AIRPORT_SKYLINE_GAP = { x0: 1440, x1: 2320 };
 
 // Gantry cranes are painted per crane, not all one grey: harbour colours, rust and steel.
 const CRANE_COLORS = ['#39424e', '#8a5a2c', '#54626e', '#74403a'];
@@ -121,6 +136,58 @@ export const TRAIN_STATIONS = [
 // Where a passenger steps off the north platform: on the sidewalk below the station,
 // the spot the story's station job sends Rico to.
 export const STATION_MEET = { x: 1200, y: RAIL_MIN + 62 };
+
+// ---------------------------------------------------------------------------
+// The airfield circuit. The plane flies a rounded rectangle in the sky: east along the
+// runway's centreline (its wheels on the strip for the first stretch), south down the
+// east side, west along the northern blocks, and north back to the runway — the same
+// arc-length construction as the railway loop, measured from the west end of the
+// runway straight, heading east. The runway straight is the loop's first segment, so
+// `s` in [0, 560] is the takeoff and landing roll itself.
+
+const AIR_MIN_X = 1520; // the west end of the runway straight
+const AIR_MAX_X = 2260; // the east end of the circuit
+const AIR_Y = 67; // the runway centreline, and the circuit's north leg
+const AIR_MAX_Y = 520; // the circuit's south leg, over the northern blocks
+const AIR_R = 90; // corner radius: a gentle bank, not a hairpin
+const AIR_SEGMENTS = [];
+{
+  const lo = AIR_MIN_X + AIR_R; // 1610: where the straights begin
+  const hi = AIR_MAX_X - AIR_R; // 2170: where they end
+  const lineX = hi - lo; // 560: the runway straight
+  const loY = AIR_Y + AIR_R; // 157
+  const hiY = AIR_MAX_Y - AIR_R; // 430
+  const lineY = hiY - loY; // 273
+  const arc = (Math.PI / 2) * AIR_R;
+  AIR_SEGMENTS.push(
+    { kind: 'line', x: lo, y: AIR_Y, dx: 1, dy: 0, len: lineX }, // the runway, eastbound
+    { kind: 'arc', cx: hi, cy: loY, a0: -Math.PI / 2, len: arc },
+    { kind: 'line', x: AIR_MAX_X, y: loY, dx: 0, dy: 1, len: lineY }, // east side, southbound
+    { kind: 'arc', cx: hi, cy: hiY, a0: 0, len: arc },
+    { kind: 'line', x: hi, y: AIR_MAX_Y, dx: -1, dy: 0, len: lineX }, // south leg, westbound
+    { kind: 'arc', cx: lo, cy: hiY, a0: Math.PI / 2, len: arc },
+    { kind: 'line', x: AIR_MIN_X, y: hiY, dx: 0, dy: -1, len: lineY }, // west side, northbound
+    { kind: 'arc', cx: lo, cy: loY, a0: Math.PI, len: arc },
+  );
+}
+export const AIR_LOOP_LENGTH = AIR_SEGMENTS.reduce((sum, seg) => sum + seg.len, 0);
+
+/** The point and heading at arc length `s` along the airfield circuit. `s` wraps. */
+export function airportPointAt(s) {
+  let d = ((s % AIR_LOOP_LENGTH) + AIR_LOOP_LENGTH) % AIR_LOOP_LENGTH;
+  for (const seg of AIR_SEGMENTS) {
+    if (d > seg.len) {
+      d -= seg.len;
+      continue;
+    }
+    if (seg.kind === 'line') {
+      return { x: seg.x + seg.dx * d, y: seg.y + seg.dy * d, angle: Math.atan2(seg.dy, seg.dx) };
+    }
+    const a = seg.a0 + d / AIR_R;
+    return { x: seg.cx + Math.cos(a) * AIR_R, y: seg.cy + Math.sin(a) * AIR_R, angle: a + Math.PI / 2 };
+  }
+  return { x: AIR_MIN_X + AIR_R, y: AIR_Y, angle: 0 };
+}
 
 export function isOnRoad(x, y) {
   const half = ROAD_WIDTH / 2;
@@ -232,6 +299,25 @@ export function createCity(random) {
     railPillars.push({ x: p.x, y: p.y, angle: p.angle });
   }
   const rail = { pillars: railPillars, stations: TRAIN_STATIONS };
+  // The airfield: its runway, its hangar and the gap it cuts in the skyline are fixed
+  // geometry too, so the strip is in the same place in every city.
+  const airport = { runway: AIRPORT_RUNWAY, hangar: AIRPORT_HANGAR };
+  // The hangar stands on the strip north of the runway, solid like any building, with
+  // its own sign over the door: it is where the story's pilot waits out the storm.
+  buildings.push({
+    x: AIRPORT_HANGAR.x,
+    y: AIRPORT_HANGAR.y,
+    w: AIRPORT_HANGAR.w,
+    h: AIRPORT_HANGAR.h,
+    color: COLORS.hangar,
+    roof: COLORS.hangarRoof,
+    height: 10,
+    sign: { text: 'AIRFIELD', color: '#39c2d7' },
+    awning: null,
+    gear: 0,
+    tank: false,
+    kind: 'hangar',
+  });
   for (let ix = 0; ix < 8; ix += 1) {
     for (let iy = 0; iy < 8; iy += 1) {
       signals.push({ x: ROADS[ix], y: ROADS[iy], offset: (ix * 5 + iy * 7) % SIGNAL_CYCLE });
@@ -449,10 +535,15 @@ export function createCity(random) {
   }
   // The distant skyline: towers shoulder to shoulder along the north edge and down the
   // east edge, beyond the street grid — the bigger city that Solmar is a port of. The
-  // renderer draws them flat and dark, with a scatter of lit windows.
+  // north row leaves a gap where the airfield's runway runs, so no tower ever stands
+  // on the strip: the gap is the airfield's own skyline.
   let sx = -12;
   while (sx < WORLD) {
     const w = 46 + random() * 60;
+    if (sx + w > AIRPORT_SKYLINE_GAP.x0 && sx < AIRPORT_SKYLINE_GAP.x1) {
+      sx += w + 4 + random() * 22;
+      continue;
+    }
     skyline.push({ x: sx, y: 0, w, h: 55 + random() * 70, side: 'north' });
     sx += w + 4 + random() * 22;
   }
@@ -462,7 +553,7 @@ export function createCity(random) {
     skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
     sy += w + 4 + random() * 22;
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail };
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail, airport };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

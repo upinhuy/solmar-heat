@@ -4,14 +4,17 @@
 // The step also keeps the city breathing: fountain spray arcs over the plazas, dust motes
 // drift through the streets, foam sparkles lift off the beach shoreline where the waves
 // break, a horn blast from the player's car scatters the crowd wide,
-// the weather turns — rain rolls in, slicks the streets and rolls out again — a hard
+// the weather turns — rain rolls in, slicks the streets and rolls out again, and some
+// rain bands are thunderstorms: lightning strikes every few seconds, the screen flashes
+// and the thunder rolls after it — a hard
 // crash kicks the camera (game.shake, which the renderer reads), the elevated train
-// circles its loop and pauses at its stations, hard impacts bend the cars (a wrecked
+// circles its loop and pauses at its stations, the airfield's prop plane flies its
+// touch-and-go circuit over the northern blocks, hard impacts bend the cars (a wrecked
 // engine smokes), and the light street props — crates, bins, dock barrels — split open
 // when a fast car ploughs through them and leave their wreckage on the ground.
-import { CAR, CITY_POPULATION, PLAYER, SAVE_KEY, STEP, TRAIN, WORLD } from './config.js';
-import { createRandom, distance, pick } from './random.js';
-import { BEACH_EAST, BEACH_WATER_Y, TRAIN_LOOP_LENGTH, TRAIN_STATIONS, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { AIR_LOOP_LENGTH, BEACH_EAST, BEACH_WATER_Y, TRAIN_LOOP_LENGTH, TRAIN_STATIONS, airportPointAt, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { CAR, CITY_POPULATION, PLANE, PLAYER, SAVE_KEY, STEP, TRAIN, WORLD } from './config.js';
+import { createRandom, distance, pick, smoothstep } from './random.js';
 import {
   cashBurst,
   debrisBurst,
@@ -22,6 +25,7 @@ import {
   makePed,
   makeParticle,
   muzzleFlash,
+  planeTrail,
   sparks,
   tyreSmoke,
   updateBullet,
@@ -103,12 +107,19 @@ export function createGame(seed, saved) {
     // current pace, `dwell` the seconds left at a station, `lastStop` the station it
     // most recently served (so it never brakes twice for the same stop).
     train: { s: 300, speed: TRAIN.speed, dwell: 0, lastStop: -1 },
+    // The airfield plane: `s` is its arc length along the circuit, `speed` its pace,
+    // `alt` its altitude — 0 with the wheels on the runway, 1 at cruise. It starts
+    // mid-runway, already rolling for takeoff.
+    plane: { s: 0, speed: 90, alt: 0 },
     police: createPolice(),
     missions: createMissions(),
     cash: 0,
     clock: 9 * 60, // 09:00 in the morning
     time: 0,
-    weather: { rain: 0, nextChange: 75, lock: false }, // rain 0..1; lock pins it (staged scenes)
+    // The weather: rain 0..1, and storm 0/1 — a storm band is heavy rain with
+    // lightning. `flash` is the lightning's brightness, decaying fast with one
+    // flicker back; `boltX`/`boltY` is where the last bolt struck, near the player.
+    weather: { rain: 0, nextChange: 75, lock: false, storm: 0, flash: 0, flicker: false, nextBolt: 8, boltX: 0, boltY: 0, boltSeed: 0 },
     shake: 0, // camera kick from the last hard impact, in world units, decaying
     dialogue: null,
     objectiveText: '',
@@ -269,6 +280,44 @@ function updateTrain(game, dt) {
   }
 }
 
+/**
+ * One fixed step of the airfield plane. It flies touch-and-go circuits forever: the
+ * runway straight is the loop's first stretch, so the cycle is a landing roll that
+ * slows to a taxi, a power-up down the same strip, a climb out over the northern
+ * blocks, a cruise around the circuit, and a descent back onto the strip. Speed and
+ * altitude both follow the arc length: slow on the first stretch of the runway,
+ * accelerating down the rest of it, cruising in the air, easing in on final approach;
+ * altitude is 0 on the ground, ramps up as the wheels leave the strip, holds at cruise,
+ * and ramps back down on the approach. It never collides with anything — the sky is
+ * its own layer — so this is pure motion, and the renderer reads the plane's position
+ * straight off game.plane.s and game.plane.alt.
+ */
+function updatePlane(game, dt) {
+  const p = game.plane;
+  const LEN = AIR_LOOP_LENGTH;
+  // The runway straight is s in [0, 560]: the first 200 are the landing roll slowing
+  // to a taxi, the rest is the takeoff power-up. In the air it cruises; on final
+  // approach (the last 420 of the loop) it eases in for the touchdown.
+  let target = PLANE.cruise;
+  if (p.s < 200) target = PLANE.roll;
+  else if (p.s >= LEN - PLANE.descendAt) target = PLANE.approach;
+  const rate = target < p.speed ? PLANE.brake : PLANE.accel;
+  p.speed += Math.max(-rate * dt, Math.min(rate * dt, target - p.speed));
+  p.s = (p.s + p.speed * dt) % LEN;
+  // Altitude: 0 on the ground until the wheels leave the strip, an S-curve up to
+  // cruise, 1 around the circuit, and an S-curve back down on the approach — touching
+  // down exactly as the loop wraps back onto the runway.
+  const climb = smoothstep(PLANE.liftAt, PLANE.climbEnd, p.s);
+  const descend = 1 - smoothstep(LEN - PLANE.descendAt, LEN, p.s);
+  p.alt = Math.min(climb, descend);
+  // A climbing plane leaves a thin white trail off its tail, so the eye follows the
+  // circuit it is flying.
+  if (p.alt > 0.5 && game.rng() < dt * 8) {
+    const tail = airportPointAt(p.s - 34);
+    planeTrail(game, tail.x, tail.y - p.alt * PLANE.altDraw);
+  }
+}
+
 /** The light props a fast car can smash through: dock crates, litter bins, barrels. */
 const BREAKABLE = { crate: ['#a8854f', '#77603f'], bin: ['#2c4a34', '#3d6b47'], barrel: ['#8a5a2c', '#5d3c1c', '#b8443a'] };
 
@@ -283,12 +332,45 @@ export function stepGame(game, input, dt) {
   game.clock += dt * 0.5; // one in-game minute every two real seconds
   game.shake = Math.max(0, game.shake - dt * 26); // a camera kick settles in about a quarter second
   // The weather turns on its own clock: dry spells and rain bands alternate, unless a
-  // staged scene has pinned the sky with weather.lock.
-  if (!game.weather.lock) {
-    game.weather.nextChange -= dt;
-    if (game.weather.nextChange <= 0) {
-      game.weather.nextChange = 50 + game.rng() * 70;
-      game.weather.rain = game.weather.rain > 0 ? 0 : 0.65 + game.rng() * 0.35;
+  // staged scene has pinned the sky with weather.lock. Some rain bands are
+  // thunderstorms: heavy rain, and lightning every few seconds while they last.
+  const w = game.weather;
+  if (!w.lock) {
+    w.nextChange -= dt;
+    if (w.nextChange <= 0) {
+      w.nextChange = 50 + game.rng() * 70;
+      if (w.rain > 0) {
+        w.rain = 0;
+        w.storm = 0;
+        w.flash = 0;
+      } else {
+        const stormy = game.rng() < 0.45; // nearly half the rain bands come with thunder
+        w.storm = stormy ? 1 : 0;
+        w.rain = stormy ? 1 : 0.5 + game.rng() * 0.3;
+        if (stormy) w.nextBolt = 2 + game.rng() * 4;
+      }
+    }
+  }
+  // Lightning: during a storm a bolt strikes every few seconds, near the player, and
+  // the thunder event carries the sound. The flash decays fast, with one flicker back
+  // as the bolt branches — the renderer reads game.weather.flash every frame.
+  if (w.storm > 0 && !w.lock) {
+    w.nextBolt -= dt;
+    if (w.nextBolt <= 0) {
+      w.nextBolt = 3.5 + game.rng() * 5.5;
+      w.flash = 1;
+      w.flicker = true;
+      w.boltX = player.x + (game.rng() - 0.5) * 900;
+      w.boltY = player.y + (game.rng() - 0.5) * 500 - 120;
+      w.boltSeed = game.rng() * 1000;
+      events.push({ type: 'thunder' });
+    }
+  }
+  if (w.flash > 0) {
+    w.flash = Math.max(0, w.flash - dt * 2.4);
+    if (w.flicker && w.flash < 0.6) {
+      w.flash = 0.85; // the bolt branches: one bright flicker back before it dies
+      w.flicker = false;
     }
   }
   player.punchCooldown = Math.max(0, player.punchCooldown - dt);
@@ -298,6 +380,7 @@ export function stepGame(game, input, dt) {
   player.hornCd = Math.max(0, player.hornCd - dt);
   player.aim = input.aim;
   updateTrain(game, dt); // the elevated line keeps its own timetable, whatever Rico does
+  updatePlane(game, dt); // the airfield plane keeps its own circuit, whatever Rico does
 
   if (input.enter) {
     const event = enterExitCar(game);
@@ -553,8 +636,9 @@ export function stepGame(game, input, dt) {
   }
   // Rain: fast streaks slanting down around the player, gone in half a second. The
   // renderer draws kind 'rain' as a line, not a dot, and the wet streets do the rest.
+  // A thunderstorm throws its rain down harder than a plain shower does.
   if (game.weather.rain > 0) {
-    const drops = Math.round(game.weather.rain * 3);
+    const drops = Math.round(game.weather.rain * (game.weather.storm > 0 ? 5 : 3));
     for (let i = 0; i < drops; i += 1) {
       const drop = makeParticle(
         player.x + (game.rng() - 0.5) * 1250,

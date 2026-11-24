@@ -6,7 +6,9 @@
 // at the full five stars. At five stars, once you have blown through one roadblock, the
 // PD throws a second one across your road while the heat lasts — and puts a helicopter
 // over the chase: no gun, no arrest, just a searchlight that refuses to lose you until
-// the heat drops. Three stars is where the
+// the heat drops. The helicopter stays grounded in a thunderstorm, though — the PD does
+// not fly its bird into lightning — so a five-star storm chase is all ground units.
+// Three stars is where the
 // pursuit bares its teeth: an extra car joins and fresh units roll in faster. Crimes raise
 // the stars; hiding lowers them. The pursuit is hard on the cruisers, too: a unit that
 // piles into a building comes away bent, and a bent cruiser smokes like any other wreck.
@@ -178,8 +180,10 @@ export function updatePolice(game, dt, events) {
   // where he is heading and swaying as it hunts, faster than any car in the city. Drop
   // below five stars and it peels off toward the edge of town and is gone; the ground
   // units still decide whether the heat cools, so the bird alone can never hold a chase
-  // open forever.
-  if (police.wanted >= WANTED_MAX) {
+  // open forever. In a thunderstorm it never takes off at all, and a bird already up
+  // peels off the moment the storm rolls in — the PD does not fly into lightning.
+  const storm = game.weather && game.weather.storm > 0;
+  if (police.wanted >= WANTED_MAX && !storm) {
     if (!police.heli) {
       const fromEast = chance(game.rng, 0.5);
       const a = game.rng() * Math.PI * 2;

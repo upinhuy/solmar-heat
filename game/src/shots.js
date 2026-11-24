@@ -1,4 +1,4 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train|storm|airport.
 // Each one plays the real rules forward from a fresh seeded game for a fixed number of
 // steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
 // a short game really looks like and the same seed always gives the same frame. Each scene
@@ -9,9 +9,11 @@
 // hunting overhead. The beach scene cruises the coast road at golden hour with the new
 // resort district in frame: pastel hotels and their pools behind, the sand and the sea
 // ahead, umbrellas and beachgoers scattered down the shore. The train scene rides the
-// north avenue at dusk directly under the elevated line, the three-car train a little
-// ahead on the same avenue with its windows lit, in a car already bent and smoking from
-// the day's work — the railway and the damage system in one frame.
+// north avenue at dusk under the elevated line, the three-car train ahead with its
+// windows lit. The storm scene is a three-star night chase in a thunderstorm: lightning
+// over downtown, the streets darker than a plain rainy night, the neon doubled in the
+// wet. The airport scene watches the prop plane lift off the runway at golden hour,
+// the hangar and the north road below it, from a car on the parallel street.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -116,7 +118,7 @@ function walkToward(game, target, seconds) {
 
 /**
  * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain,
- * port, heli, beach or train; any other name is start) and return the screen to draw over it.
+ * port, heli, beach, train, storm or airport; any other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, game) {
   if (name === 'skyline') {
@@ -182,6 +184,71 @@ export function stageShot(name, game) {
       cop.angle = car.angle;
       cop.siren = 1;
     }
+    game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'storm') {
+    game.clock = 22 * 60; // full night: the storm owns the frame, not the hour
+    game.weather.rain = 1;
+    game.weather.storm = 1;
+    game.weather.lock = true; // the thunderstorm stays for the whole photograph
+    startRun(game);
+    noActivities(game);
+    game.player.x = 1050;
+    game.player.y = 1050;
+    putPlayerInCar(game);
+    game.player.health = 400; // a staged scene: the pursuit lasts the photograph
+    setWanted(game.police, 3); // three stars of company through the wet downtown blocks
+    const route = [
+      { x: 1950, y: 1050 },
+      { x: 1950, y: 1650 },
+      { x: 1050, y: 1650 },
+      { x: 1050, y: 1050 },
+    ];
+    driveRoute(game, routeTarget(game, route), 5);
+    // The bolt strikes over the player, mid-flash, so the photograph catches the fork
+    // and the white wash together; the weather would let it decay before the paint.
+    game.weather.flash = 0.9;
+    game.weather.flicker = true;
+    game.weather.boltX = game.player.x + 160;
+    game.weather.boltY = game.player.y - 180;
+    game.weather.boltSeed = 42;
+    // Scene dressing, as in the rain scene: string the pursuit out behind the player
+    // so the frame reads as a chase, not a convoy stacked on one point.
+    const car = game.player.car;
+    for (const [i, cop] of [...game.police.cars].slice(0, 3).entries()) {
+      cop.x = car.x - Math.cos(car.angle) * (85 + i * 72);
+      cop.y = car.y - Math.sin(car.angle) * (85 + i * 72);
+      const road = nearestRoadPoint(cop.x, cop.y);
+      cop.x = road.x;
+      cop.y = road.y;
+      cop.angle = car.angle;
+      cop.siren = 1;
+    }
+    game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'airport') {
+    game.clock = 17 * 60 + 45; // golden hour: warm light over the runway, lamps not yet lit
+    startRun(game);
+    noActivities(game);
+    // Rico waits in a car on the north road, one block south of the runway, facing the
+    // airfield — the hangar to the west, the runway and the climbing plane to the east.
+    game.player.x = 1900;
+    game.player.y = 150;
+    putPlayerInCar(game);
+    const car = game.player.car;
+    car.x = 1900;
+    car.y = 150;
+    car.angle = 0;
+    car.speed = 0;
+    game.player.x = car.x;
+    game.player.y = car.y;
+    game.player.health = 400; // a staged scene: the wait lasts the photograph
+    // The plane mid-takeoff: past the climb point, most of the way up, a third of the
+    // way down the runway's eastbound leg — the frame catches it with the hangar and
+    // the runway lights still in view.
+    game.plane = { s: 520, speed: 200, alt: 0.87 };
     game.dialogue = null;
     return { screen: SCREEN_PLAY };
   }

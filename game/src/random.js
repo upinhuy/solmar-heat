@@ -56,6 +56,14 @@ export function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+/** The smoothstep curve: 0 below edge0, 1 above edge1, an S-shaped ease between them.
+ * The airfield plane climbs and descends on it, and the lightning flash decays on it,
+ * so neither motion ever snaps from one state to the other. */
+export function smoothstep(edge0, edge1, x) {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
 /** Shortest signed turn from angle `from` to angle `to`, in radians. */
 export function angleDelta(from, to) {
   let d = (to - from) % (Math.PI * 2);

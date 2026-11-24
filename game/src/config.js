@@ -52,6 +52,23 @@ export const TRAIN = {
   brakeZone: 170, // distance out from a station where the braking starts
 };
 
+// The airfield's little prop plane, flying touch-and-go circuits over the north edge:
+// it rolls down the runway, lifts off, circles the northern blocks in the sky and comes
+// back to land on the same strip, over and over. It lives in the air layer, so it never
+// collides with anything on the ground — the same deal as the train and the helicopter.
+// Speeds are in world units per second; altitude is 0 on the ground, 1 at cruise.
+export const PLANE = {
+  cruise: 210, // speed in the air, around the circuit
+  roll: 60, // the slow taxi speed mid-runway, between landing and takeoff
+  approach: 150, // speed on final approach, easing in for the touchdown
+  accel: 95, // how briskly it powers up down the runway
+  brake: 150, // how firmly it slows after touching down
+  liftAt: 420, // arc length along the runway where the wheels leave the ground
+  climbEnd: 560, // arc length where the climb levels off at cruise altitude
+  descendAt: 420, // arc length before the loop's end where the descent begins
+  altDraw: 46, // how far up the screen the plane is drawn per unit of altitude
+};
+
 export const CAR = {
   radius: 17,
   length: 46,
@@ -154,6 +171,19 @@ export const COLORS = {
   smokeDark: '#3a3a3a',
   barrel: '#8a5a2c',
   barrelDark: '#5d3c1c',
+  // The airfield on the north edge: a dark asphalt strip with white markings and amber
+  // edge lights, a pale hangar, and the little prop plane itself — a white fuselage with
+  // a blue stripe and a red tail, lit like a toy at dusk.
+  runway: '#3a3d42',
+  runwayLine: '#e8e8e8',
+  runwayLight: '#ffd76a',
+  hangar: '#c9c9c9',
+  hangarRoof: '#8a8f96',
+  planeBody: '#e8e8e8',
+  planeStripe: '#2f6fd0',
+  planeTail: '#b8443a',
+  // A lightning bolt: cold white-blue, the colour the whole screen flashes.
+  bolt: '#dfe9ff',
 };
 
 // Neon signboards on the commercial buildings: names and tube colours, assigned per

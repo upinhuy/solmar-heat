@@ -8,7 +8,8 @@
 // history with them: every hard impact adds to a car's damage, and a badly damaged car
 // trails engine smoke and wears its dents where the renderer can draw them. Physics is simple
 // arcade: accelerate, steer by speed, grip damps sideways slide, buildings stop you with
-// a thud.
+// a thud. The airfield's prop plane leaves a different trail: thin white puffs off its
+// wingtips while it climbs, gone a second later.
 import { CAR, PED_SPEED, PLAYER, ROAD_WIDTH, TRAFFIC_SPEED, WORLD } from './config.js';
 import { angleDelta, clamp, distance, intRange, pick, range } from './random.js';
 import { gridTarget, hitsBuilding, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
@@ -444,4 +445,18 @@ export function debrisBurst(game, x, y, colors, n) {
     chunk.rot = game.rng() * Math.PI;
     game.particles.push(chunk);
   }
+}
+
+/** The airfield plane's trail: a thin white puff off the tail while it climbs, gone in
+ * under a second — just enough to draw the eye along the circuit it is flying. */
+export function planeTrail(game, x, y) {
+  game.particles.push(makeParticle(
+    x + range(game.rng, -6, 6),
+    y + range(game.rng, -6, 6),
+    range(game.rng, -10, 10),
+    range(game.rng, -10, 10),
+    0.9,
+    '#eef2f6',
+    3,
+  ));
 }
