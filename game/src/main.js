@@ -3,9 +3,11 @@
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown|skyline|
-// rain|port|heli|beach|train|storm|airport|market|spikes|harbour (with &seed=N) stages that scene instead of running the loop, paints it
+// rain|port|heli|beach|train|storm|airport|market|spikes|harbour|stormpier (with &seed=N) stages that scene instead of running the loop, paints it
 // twice and sets window.__shotReady for a screenshot. The heli scene is the five-star
 // night chase: roadblocks on the ground, the police helicopter's searchlight overhead.
+// The stormpier scene stages the new storm job on the marina pier: Rico trading shots
+// with the harbour crew under a forked bolt, the festoon lights swaying over the boards.
 // The beach scene is the golden-hour cruise along the coast road, the resort district
 // on one side and the sand and sea on the other. The train scene rides the north avenue
 // at dusk under the elevated line, the three-car train ahead with its windows lit. The

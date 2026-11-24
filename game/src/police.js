@@ -9,7 +9,11 @@
 // At five stars, once you have blown through one roadblock, the
 // PD throws a second one across your road while the heat lasts — and puts a helicopter
 // over the chase: no gun, no arrest, just a searchlight that refuses to lose you until
-// the heat drops. The helicopter stays grounded in a thunderstorm, though — the PD does
+// the heat drops — a real beam now, with its own pool of light on the ground that lags
+// behind a swerving driver, a lock that builds while the beam holds you and fades when
+// it loses you, and a sweep pattern that circles your last seen spot until the light
+// finds you again. While the beam holds you it vectors the ground units in, so the
+// nearest cruisers run a tenth faster. The helicopter stays grounded in a thunderstorm, though — the PD does
 // not fly its bird into lightning — so a five-star storm chase is all ground units.
 // Three stars is where the
 // pursuit bares its teeth: an extra car joins and fresh units roll in faster. Crimes raise
@@ -32,7 +36,7 @@ export function createPolice() {
     roadblockSet: false, // a roadblock is out for the current heat level
     roadblockWaves: 0, // roadblocks thrown at this heat so far (a second wave only at 5 stars)
     strips: [], // spike strips laid across the road ahead of roadblocks: {x, y, angle, hit, deploy} — deploy 0..1 is the strip unfolding on the asphalt; it only bites once fully laid
-    heli: null, // the five-star helicopter: {x, y, angle, rotor, leaving} while it hunts
+    heli: null, // the five-star helicopter: {x, y, angle, rotor, leaving, beamX, beamY, lock, sweep} while it hunts — beamX/beamY is where the searchlight's pool sits on the ground, lock 0..1 is how firmly the beam holds the player, sweep is the angle of its search circle when the beam has lost him
   };
 }
 
@@ -202,11 +206,17 @@ export function updatePolice(game, dt, events) {
   }
 
   // The helicopter: at the full five stars the PD puts a bird over the chase. It carries
-  // no gun and makes no arrest — it hovers over the player with its searchlight on, aimed
-  // where he is heading and swaying as it hunts, faster than any car in the city. Drop
-  // below five stars and it peels off toward the edge of town and is gone; the ground
-  // units still decide whether the heat cools, so the bird alone can never hold a chase
-  // open forever. In a thunderstorm it never takes off at all, and a bird already up
+  // no gun and makes no arrest — it hunts with a searchlight: the beam's pool on the
+  // ground lags behind a swerving driver, so a hard turn can shake the light, and while
+  // the pool covers the player the lock builds — a locked beam vectors the ground units
+  // in, the nearest cruisers running a tenth faster. Lose the light and the lock fades,
+  // and the bird stops hovering over the chase to sweep a circle around the player's
+  // last seen spot until the beam finds him again. It flies at where the player will
+  // be, leading him by COP.heliLead, and closes the distance faster the further behind
+  // it is, so a long straight never shakes it for good. Drop below five stars and it
+  // peels off toward the edge of town, beam off, and is gone; the ground units still
+  // decide whether the heat cools, so the bird alone can never hold a chase open
+  // forever. In a thunderstorm it never takes off at all, and a bird already up
   // peels off the moment the storm rolls in — the PD does not fly into lightning.
   const storm = game.weather && game.weather.storm > 0;
   if (police.wanted >= WANTED_MAX && !storm) {
@@ -219,24 +229,56 @@ export function updatePolice(game, dt, events) {
         angle: fromEast ? Math.PI : 0,
         rotor: 0,
         leaving: false,
+        beamX: player.x,
+        beamY: player.y,
+        lock: 0,
+        sweep: game.rng() * Math.PI * 2,
       };
       events.push({ type: 'announce', text: 'PD helicopter overhead — five stars!' });
     } else {
       const heli = police.heli;
       heli.leaving = false;
       heli.rotor += dt * 42;
-      const lead = aimPoint(game);
-      const sway = game.time * 0.8;
-      const tx = lead.x + Math.cos(sway) * 34;
-      const ty = lead.y + Math.sin(sway * 1.3) * 26;
+      // Where the player will be: his car velocity, or his facing on foot, led by
+      // COP.heliLead — the bird flies at the future, not the present.
+      const pvx = player.inCar && player.car ? player.car.vx : Math.cos(player.angle) * 60;
+      const pvy = player.inCar && player.car ? player.car.vy : Math.sin(player.angle) * 60;
+      const px = player.x + pvx * COP.heliLead;
+      const py = player.y + pvy * COP.heliLead;
+      // The searchlight: its pool chases the player's predicted spot but never
+      // catches it instantly — a hard swerve leaves the light behind for a beat.
+      heli.beamX += (px - heli.beamX) * Math.min(1, COP.heliBeamLag * dt);
+      heli.beamY += (py - heli.beamY) * Math.min(1, COP.heliBeamLag * dt);
+      const beamD = Math.hypot(player.x - heli.beamX, player.y - heli.beamY);
+      if (beamD < COP.heliBeamRadius) heli.lock = Math.min(1, heli.lock + dt * COP.heliLockRate);
+      else heli.lock = Math.max(0, heli.lock - dt * COP.heliLockRate * 1.5);
+      // Lost the light: sweep a circle around the player's last seen spot until the
+      // beam re-acquires, instead of hovering over empty asphalt.
+      let tx;
+      let ty;
+      if (heli.lock <= 0.05 && beamD > COP.heliBeamRadius * 1.6) {
+        heli.sweep += dt * 0.55;
+        tx = player.x + Math.cos(heli.sweep) * COP.heliSweepRadius;
+        ty = player.y + Math.sin(heli.sweep) * COP.heliSweepRadius;
+      } else {
+        tx = px;
+        ty = py;
+      }
       const dx = tx - heli.x;
       const dy = ty - heli.y;
       const d = Math.hypot(dx, dy);
       if (d > 4) {
-        const stepMove = Math.min(d, COP.heliSpeed * dt);
+        // Far behind on a long straight, the bird pours on extra pace to close.
+        const stepMove = Math.min(d, COP.heliSpeed * (d > 500 ? COP.heliCatchup : 1) * dt);
         heli.x += (dx / d) * stepMove;
         heli.y += (dy / d) * stepMove;
         heli.angle = Math.atan2(dy, dx);
+      }
+      // A locked beam vectors the ground units in: the nearest cruisers run a tenth
+      // faster while the light holds the player.
+      const vectoring = heli.lock > 0.6;
+      for (const car of police.cars) {
+        car.vectored = vectoring && distance(car.x, car.y, player.x, player.y) < 900;
       }
     }
   } else if (police.heli) {
@@ -280,9 +322,11 @@ export function updatePolice(game, dt, events) {
     // it back the moment the storm passes. Roadblock cars keep their posted speed —
     // they are parked until they join the chase. A unit fresh off a roadblock runs
     // 12% over its pace while its chase boost lasts, so a blown barricade still hurts.
+    // And a cruiser the helicopter's searchlight has vectored in — car.vectored, set
+    // by the heli block above — runs a tenth over its pace while the beam holds the player.
     if (car.chaseBoost > 0) car.chaseBoost -= dt;
     const boost = (car.chaseBoost || 0) > 0 ? 1.12 : 1;
-    if (!car.roadblock) car.speedTarget = COP.carSpeed * (storm ? COP.stormSlow : 1) * boost;
+    if (!car.roadblock) car.speedTarget = COP.carSpeed * (storm ? COP.stormSlow : 1) * boost * (car.vectored ? 1.1 : 1);
     const target = gridTarget(car, aimPoint(game));
     const want = Math.atan2(target.y - car.y, target.x - car.x);
     const steer = clamp(angleDelta(car.angle, want), -1, 1);

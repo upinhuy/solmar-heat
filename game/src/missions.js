@@ -1,5 +1,5 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Twenty-four missions in order, each a small state machine with an objective, a map marker,
+// Twenty-six missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
 // next. Two jobs work the beach resort district: a meet on
 // the sand that turns into a firefight among the umbrellas, and a timed run in a marked
@@ -10,6 +10,10 @@
 // two jobs before those work the south station and the marina pier: a courier steps off
 // the elevated line at Estacion Sur with a case for the crew, and a rival crew guards a
 // case on the pier under the festoon lights, four guns between Rico and the boards.
+// The two jobs before the finale: three drops across town in one marked car against a
+// 150-second clock, and a shootout on the marina pier in the middle of a thunderstorm —
+// the storm pinned overhead, the helicopter grounded, four of the harbour crew guarding
+// a case on the boards under the lightning.
 // The two jobs before those work the elevated railway: a courier's handoff under Estacion Norte
 // that turns into a timed getaway, and an ambush under the viaduct where a rival crew
 // tries to take a case back by force. The two jobs before those work the airfield on the
@@ -202,6 +206,21 @@ export const MISSIONS = [
     objectives: ['Go to the pier at the marina', 'Drop all four of them', 'Grab the cash case', 'Bring the case to the hideout'],
   },
   {
+    id: 'threedrops',
+    name: 'Three Drops, One Night',
+    reward: 6400,
+    intro: ['Mara Solis: "Three buyers, three drops, one night, Rico — and one car."', '"The marked car waits by the market. One hundred and fifty seconds, two stars, and do not mix the drops up."'],
+    objectives: ['Take the marked car', 'Reach the first drop', 'Reach the second drop', 'Reach the third drop'],
+    timer: 150,
+  },
+  {
+    id: 'stormpier',
+    name: 'The Storm on the Pier',
+    reward: 6800,
+    intro: ['Mara Solis: "The harbour crew moves a case along the pier tonight, Rico — in the middle of the storm, under the lightning."', '"Four of them guard it on the boards. The PD cannot fly in this weather, so they send everyone on foot. Drop them, take the case, bring it home."'],
+    objectives: ['Go to the pier in the storm', 'Drop all four of them', 'Grab the cash case', 'Bring the case to the hideout'],
+  },
+  {
     id: 'finale',
     name: 'One Last Ride',
     reward: 5000,
@@ -226,6 +245,8 @@ export function createMissions() {
     vanState: null, // convoy: 'driving' while the van rolls, 'parked' once it stops
     parkPoint: null,
     casePoint: null, // showdown: where the cash case waits
+    drops: [], // threedrops: the three drop points across town, in order
+    dropIndex: 0, // threedrops: which drop is next
     hostiles: [], // showdown: the rival peds, who shoot back
     finishedAll: false,
     sportUnlocked: false,
@@ -264,7 +285,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-21): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-25): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -282,6 +303,8 @@ export function startMission(game, index) {
   m.vanState = null;
   m.parkPoint = null;
   m.casePoint = null;
+  m.drops = [];
+  m.dropIndex = 0;
   m.hostiles = [];
   const player = game.player;
   if (def.id === 'getaway') {
@@ -424,6 +447,28 @@ export function startMission(game, index) {
     // harbour crew guards it with the boats bobbing below the boards.
     m.casePoint = { x: HARBOUR_MEET.x, y: HARBOUR_MEET.y };
     m.marker = { x: HARBOUR_MEET.x, y: HARBOUR_MEET.y };
+  } else if (def.id === 'threedrops') {
+    // Three drops across town in one marked car: the car waits kerbside just west of
+    // the market, and the drops are picked far apart, each on a street, so the route
+    // is a real drive across the city, not a lap of one block.
+    const car = makeCar(game.rng, { x: 1330, y: 1170, angle: Math.PI / 2, kind: 'mission', shape: 'sport', color: '#e8b23a', missionCar: true });
+    game.cars.push(car);
+    m.missionCar = car;
+    m.drops = [farPoint(game, player, 800)];
+    m.drops.push(farPoint(game, m.drops[0], 800));
+    m.drops.push(farPoint(game, m.drops[1], 800));
+    m.dropIndex = 0;
+    m.marker = { x: car.x, y: car.y };
+  } else if (def.id === 'stormpier') {
+    // The storm is the job: it rolls in the moment the mission starts and stays
+    // pinned overhead until the case is home — the helicopter stays grounded and
+    // the pier fight plays out under the lightning, the festoon lights swaying.
+    game.weather.rain = 1;
+    game.weather.storm = 1;
+    game.weather.lock = true;
+    game.weather.nextBolt = 1.5;
+    m.casePoint = { x: HARBOUR_MEET.x, y: HARBOUR_MEET.y };
+    m.marker = { x: HARBOUR_MEET.x, y: HARBOUR_MEET.y };
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -441,7 +486,7 @@ function finishMission(game, events) {
   game.cash += def.reward;
   cashBurst(game, game.player.x, game.player.y);
   events.push({ type: 'cash', amount: def.reward });
-  if (def.id === 'stormrun') {
+  if (def.id === 'stormrun' || def.id === 'stormpier') {
     // The storm was the job's weather, pinned overhead for the run: once the case is
     // home the sky is released — the band breaks up and the city dries out.
     game.weather.lock = false;
@@ -499,6 +544,7 @@ export function currentObjective(game) {
   if (!m.active) return 'Get to work';
   const def = MISSIONS[m.index];
   let text = `${def.name}: ${def.objectives[m.step]}`;
+  if (def.id === 'threedrops' && m.step === 1) text = `${def.name}: Drop ${m.dropIndex + 1} of 3 — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'tail') text += ` — ${Math.floor(m.progress)}%`;
   if (def.id === 'hot' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'nightrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
@@ -509,7 +555,7 @@ export function currentObjective(game) {
   if (def.id === 'southstation' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'stormrun' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'spikes' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
-  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk' || def.id === 'ambush' || def.id === 'airlift' || def.id === 'market' || def.id === 'harbourlights') && m.step === 1) {
+  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk' || def.id === 'ambush' || def.id === 'airlift' || def.id === 'market' || def.id === 'harbourlights' || def.id === 'stormpier') && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
   }
@@ -1147,6 +1193,68 @@ export function updateMissions(game, dt, events) {
         m.step = 2;
         m.marker = { x: m.casePoint.x, y: m.casePoint.y };
         say(game, ['Mara Solis: "Quiet on the pier. Grab the case, Rico."']);
+      }
+    } else if (m.step === 2) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
+        m.step = 3;
+        setWanted(game.police, 3);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Case is yours. Three stars over the harbour lights — bring it home."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
+    }
+  } else if (def.id === 'threedrops') {
+    if (m.step === 0) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 1;
+        m.timer = def.timer || 150;
+        setWanted(game.police, 2);
+        m.marker = { x: m.drops[0].x, y: m.drops[0].y };
+        say(game, ['Mara Solis: "Two stars and three drops. One hundred and fifty seconds — go."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'Too slow — the buyers found another driver.');
+        return;
+      }
+      const drop = m.drops[m.dropIndex];
+      if (distance(player.x, player.y, drop.x, drop.y) < 75 && player.inCar && player.car === m.missionCar) {
+        m.dropIndex += 1;
+        if (m.dropIndex >= m.drops.length) {
+          finishMission(game, events);
+        } else {
+          m.marker = { x: m.drops[m.dropIndex].x, y: m.drops[m.dropIndex].y };
+          say(game, [`Mara Solis: "Drop ${m.dropIndex} of 3 done. Next one is marked."`]);
+        }
+      }
+    }
+  } else if (def.id === 'stormpier') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 70) {
+        m.step = 1;
+        // The harbour crew spreads along the pier and the boards by it: harbour
+        // blue shirts, long guns, and the case on the planks between the festoon lights.
+        const offsets = [[-58, -28], [58, -22], [-34, 38], [46, 34]];
+        m.hostiles = offsets.map(([ox, oy]) => {
+          const h = makePed(game.rng, m.casePoint.x + ox, m.casePoint.y + oy);
+          h.shirt = '#2c6e9e';
+          h.hostile = true;
+          h.shootCd = 0.9 + game.rng() * 0.9;
+          game.peds.push(h);
+          return h;
+        });
+        addWanted(game.police, 1);
+        m.marker = null;
+        say(game, ['Harbour boss: "Wrong pier, Vega — and wrong weather. The case stays with the boats."']);
+      }
+    } else if (m.step === 1) {
+      updateHostiles(game, dt, events);
+      if (m.hostiles.every((h) => h.down > 0)) {
+        m.step = 2;
+        m.marker = { x: m.casePoint.x, y: m.casePoint.y };
+        say(game, ['Mara Solis: "Quiet on the pier — even the storm is listening. Grab the case, Rico."']);
       }
     } else if (m.step === 2) {
       if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {

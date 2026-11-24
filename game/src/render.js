@@ -26,8 +26,8 @@
 // light bar, and a bent car wears its damage: scuffed nose corners, a cracked
 // windscreen, a crumpled nose on a near-wreck. Traffic signals stand at every intersection, their lamps cycling with the
 // city's clock, and at five stars a police helicopter hangs over the chase — a ground
-// shadow thrown away from the machine, a searchlight pool under it, a blurred rotor
-// disc spinning above a dark PD body. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
+// shadow thrown away from the machine, a searchlight cone down to a pool of light that
+// lags behind a swerving driver, a blurred rotor disc spinning above a dark PD body. Shadows fall in two soft layers. At dusk a warm gradient washes the top of
 // the view; at night the street lamps pool light on the asphalt, neon spills onto the
 // sidewalks and reflects in wet streaks, windows light up floor by floor and every car
 // throws a headlight cone — L toggles the player's own lights, and in a storm every
@@ -38,7 +38,7 @@
 // the whole view, with thunder rolling after it — and about a third of the strikes
 // answer themselves with a second, weaker bolt. Canvas
 // shapes and text, no assets.
-import { COLORS, FIRST_ROAD, PLANE, REPAIR, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
+import { COLORS, COP, FIRST_ROAD, PLANE, REPAIR, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
 import { AIRPORT_DRUMS, AIRPORT_RUNWAY, AIRPORT_TAXIWAY, AIRPORT_WINDSOCK, BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, TRAIN_LOOP_LENGTH, WATER_Y, airportPointAt, signalPhase, trainPointAt } from './world.js';
 import { hash01, lerp, pulse as breathe, triWave } from './random.js';
@@ -192,6 +192,30 @@ export function createRenderer(canvas) {
       context.restore();
     }
     context.globalAlpha = 1;
+  }
+
+  /** A walk / don't-walk signal for the zebra crossings: a small post on the north-west
+   * corner with two lamps — one for crossing the north-south street, one for the
+   * east-west street. A lamp burns green while the traffic that would cut that zebra
+   * is stopped, red while it flows, so a walker can read the crossing from the kerb. */
+  function drawPedSignal(x, y, walkEW, walkNS, dark) {
+    context.fillStyle = '#14161a';
+    rr(x, y, 11, 7, 2);
+    context.fill();
+    for (let i = 0; i < 2; i += 1) {
+      const walk = i === 0 ? walkEW : walkNS;
+      const color = walk ? '#3fd06a' : '#e23b30';
+      context.save();
+      if (dark > 0.1) {
+        context.shadowColor = color;
+        context.shadowBlur = 5 * dark;
+      }
+      context.fillStyle = color;
+      context.beginPath();
+      context.arc(x + 3 + i * 5, y + 3.5, 1.8, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    }
   }
 
   /** The airfield on the north edge: a dark asphalt strip with a dashed centreline,
@@ -501,12 +525,14 @@ export function createRenderer(canvas) {
     }
     // Traffic signals at the intersections in view: one head for the north-south flow
     // on the south-east corner, one for east-west on the south-west, each showing its
-    // direction's current lamp.
+    // direction's current lamp — and a walk / don't-walk post on the north-west corner
+    // for the zebra crossings, green while the traffic that would cut each zebra is stopped.
     for (const s of city.signals || []) {
       if (s.x < vis.x0 || s.x > vis.x1 || s.y < vis.y0 || s.y > vis.y1) continue;
       const phase = signalPhase(s, game.time);
       drawSignalHead(cam.x + s.x + half + 7, cam.y + s.y + half + 7, phase.ns, dark);
       drawSignalHead(cam.x + s.x - half - 14, cam.y + s.y + half + 7, phase.ew, dark);
+      drawPedSignal(cam.x + s.x - half - 15, cam.y + s.y - half - 15, phase.ns === 'red', phase.ew === 'red', dark);
     }
     // The marina shore, east of the beach: boardwalk planks and a railing, a wet-sand
     // band, then open water. The boardwalk starts where the beach ends (BEACH_EAST).
@@ -1742,9 +1768,12 @@ export function createRenderer(canvas) {
 
   /** The police helicopter at five stars, drawn last so it rides over the whole city:
    * a soft ground shadow thrown away from the machine (that offset is what sells the
-   * altitude), a pale searchlight pool where the beam lands, the dark body with its PD
-   * band and glass nose, blinking nav lights, and over it all a translucent rotor disc
-   * with two blurred blade lines sweeping on the rotor's own clock. */
+   * altitude), the searchlight itself — a translucent cone from the belly of the bird
+   * down to the beam's pool on the ground, which lags behind a swerving driver because
+   * the pool sits where the beam operator is aiming, not under the machine — the dark
+   * body with its PD band and glass nose, blinking nav lights, and over it all a
+   * translucent rotor disc with two blurred blade lines sweeping on the rotor's own
+   * clock. While the bird is peeling off, the beam is off: the cone and the pool go dark. */
   function drawHeli(game, cam, dark) {
     const heli = game.police.heli;
     if (!heli) return;
@@ -1754,13 +1783,39 @@ export function createRenderer(canvas) {
     context.beginPath();
     context.ellipse(hx - 36, hy + 42, 34, 13, heli.angle, 0, Math.PI * 2);
     context.fill();
-    const pool = context.createRadialGradient(hx, hy, 4, hx, hy, 76);
-    pool.addColorStop(0, `rgba(255,246,214,${0.10 + dark * 0.32})`);
-    pool.addColorStop(1, 'rgba(255,246,214,0)');
-    context.fillStyle = pool;
-    context.beginPath();
-    context.arc(hx, hy, 76, 0, Math.PI * 2);
-    context.fill();
+    if (!heli.leaving) {
+      // The beam cone: narrow at the belly, widening to the pool on the ground, so
+      // the light reads as a shaft, not a disc — brighter after dark, when the beam
+      // is the brightest thing in the chase.
+      const bx = cam.x + (heli.beamX ?? heli.x);
+      const by = cam.y + (heli.beamY ?? heli.y);
+      const bdx = bx - hx;
+      const bdy = by - hy;
+      const blen = Math.hypot(bdx, bdy) || 1;
+      const bux = bdx / blen;
+      const buy = bdy / blen;
+      const px = -buy;
+      const py = bux;
+      const beamAlpha = 0.05 + dark * 0.09;
+      const cone = context.createLinearGradient(hx, hy, bx, by);
+      cone.addColorStop(0, `rgba(255,246,214,${beamAlpha * 1.6})`);
+      cone.addColorStop(1, `rgba(255,246,214,${beamAlpha})`);
+      context.fillStyle = cone;
+      context.beginPath();
+      context.moveTo(hx + px * 7, hy + py * 7);
+      context.lineTo(hx - px * 7, hy - py * 7);
+      context.lineTo(bx - px * COP.heliBeamRadius * 0.55, by - py * COP.heliBeamRadius * 0.55);
+      context.lineTo(bx + px * COP.heliBeamRadius * 0.55, by + py * COP.heliBeamRadius * 0.55);
+      context.closePath();
+      context.fill();
+      const pool = context.createRadialGradient(bx, by, 4, bx, by, COP.heliBeamRadius);
+      pool.addColorStop(0, `rgba(255,246,214,${0.14 + dark * 0.34})`);
+      pool.addColorStop(1, 'rgba(255,246,214,0)');
+      context.fillStyle = pool;
+      context.beginPath();
+      context.arc(bx, by, COP.heliBeamRadius, 0, Math.PI * 2);
+      context.fill();
+    }
     context.save();
     context.translate(hx, hy);
     context.rotate(heli.angle);
@@ -2853,7 +2908,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Twenty-four story missions, a night market district with ten stalls, paper lanterns and a band that plays in sets, police spike strips at four stars with warning chevrons and two kerbside repair bays, an elevated railway circling downtown, a five-star helicopter, a prop plane over the airfield, and a new job at Estacion Sur and a shootout on the marina pier under the festoon lights.',
+        'Twenty-six story missions, a night market district with ten stalls, paper lanterns and a band that plays in sets, police spike strips at four stars with warning chevrons and two kerbside repair bays, an elevated railway circling downtown, a five-star helicopter whose searchlight beam lags a swerving driver and vectors the ground units in, a prop plane over the airfield, traffic lights timed as a green wave with walk signals at every zebra crossing, and two new jobs before the finale: three drops across town in one night, and a shootout on the marina pier in the middle of a thunderstorm.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause · C photo mode',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',

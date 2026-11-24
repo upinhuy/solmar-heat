@@ -1,4 +1,4 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train|storm|airport|market|spikes|harbour.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train|storm|airport|market|spikes|harbour|stormpier.
 // Each one plays the real rules forward from a fresh seeded game for a fixed number of
 // steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
 // a short game really looks like and the same seed always gives the same frame. Each scene
@@ -19,7 +19,10 @@
 // The market scene walks Rico through the night market at 20:30, lanterns lit, the band
 // on the stage and the crowd thick under the string lights. The spikes scene is a
 // four-star night chase: a roadblock and a fresh spike strip across the road ahead, the
-// PD's newest trick, with the pursuit strung out behind the player.
+// PD's newest trick, with the pursuit strung out behind the player. The stormpier scene
+// stages the new storm job: Rico trading shots with the harbour crew on the marina pier
+// under a forked bolt, the festoon lights swaying over the boards and the rain
+// hammering the wet planks.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -124,7 +127,7 @@ function walkToward(game, target, seconds) {
 
 /**
  * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain,
- * port, heli, beach, train, storm, airport, market, spikes or harbour; any other name is start) and return the screen to draw over it.
+ * port, heli, beach, train, storm, airport, market, spikes, harbour or stormpier; any other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, game) {
   if (name === 'skyline') {
@@ -372,6 +375,50 @@ export function stageShot(name, game) {
     game.player.health = 500; // a staged scene: he stands his ground for the photograph
     walkToward(game, HARBOUR_MEET, 4);
     walkToward(game, { x: HARBOUR_MEET.x - 150, y: HARBOUR_MEET.y - 30 }, 3);
+    // Two and a half seconds of the firefight: Rico aims at a standing rival and shoots.
+    const steps = Math.floor(2.5 / STEP);
+    for (let i = 0; i < steps; i += 1) {
+      const standing = game.missions.hostiles.filter((h) => h.down <= 0);
+      const foe = standing[0];
+      const aim = foe ? Math.atan2(foe.y - game.player.y, foe.x - game.player.x) : 0;
+      stepGame(game, {
+        move: { x: 0, y: 0 },
+        sprint: false,
+        handbrake: false,
+        aim,
+        shoot: i % 18 === 0,
+        punch: false,
+        enter: false,
+      }, STEP);
+      if (game.player.health <= 0) break;
+    }
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'stormpier') {
+    game.clock = 22 * 60; // full night: the storm owns the pier, not the hour
+    game.missions.index = 24;
+    startMission(game, 24); // The Storm on the Pier: the storm pins overhead, the case waits on the pier
+    noActivities(game);
+    // Rico walks out onto the pier from the boardwalk; the trap springs and the
+    // crew steps out of the boards under the lightning. He then falls back to the
+    // pier's foot to trade shots at range — far enough from the cash case that the
+    // photograph cannot accidentally finish the mission.
+    game.player.x = HARBOUR_MEET.x - 190;
+    game.player.y = HARBOUR_MEET.y - 40;
+    game.player.health = 500; // a staged scene: he stands his ground for the photograph
+    walkToward(game, HARBOUR_MEET, 4);
+    walkToward(game, { x: HARBOUR_MEET.x - 150, y: HARBOUR_MEET.y - 30 }, 3);
+    // The bolt strikes over the pier, mid-flash, so the photograph catches the fork
+    // and the white wash together over the festoon lights; the weather would let it
+    // decay before the paint. The gust is up and a second strike is due, so the frame
+    // can catch the echo bolt and the splash rings on the wet boards as well.
+    game.weather.flash = 0.9;
+    game.weather.flicker = true;
+    game.weather.gust = 0.7;
+    game.weather.doubleStrike = true;
+    game.weather.boltX = HARBOUR_MEET.x + 120;
+    game.weather.boltY = HARBOUR_MEET.y - 160;
+    game.weather.boltSeed = 42;
     // Two and a half seconds of the firefight: Rico aims at a standing rival and shoots.
     const steps = Math.floor(2.5 / STEP);
     for (let i = 0; i < steps; i += 1) {

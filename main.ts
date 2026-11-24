@@ -5,7 +5,7 @@
 // summary the judge reads, with the vendored make.fun library.
 //
 // Solmar Heat: an original open-world crime game. Explore the city of Solmar on foot and by
-// car, steal cars, run twenty-four story missions for Mara Solis — getaway driving, a timed hot
+// car, steal cars, run twenty-six story missions for Mara Solis — getaway driving, a timed hot
 // delivery, a tail, a heist, a convoy job, a harbour showdown against rivals who shoot back,
 // a marked-car swap, a timed night run, a truck heist in the industrial port, a limousine
 // dash against the clock, a rush-hour coupe run through the downtown lights, a shootout
@@ -22,7 +22,10 @@
 // repair bays for a free set of tyres — and a courier's handoff under the south
 // station, Estacion Sur, that turns into a timed ride home in a cream coupe, and a
 // shootout on the marina pier under the festoon lights, four of the harbour crew
-// guarding a case on the boards — and a
+// guarding a case on the boards — and three drops across town in a single marked car
+// against a 150-second clock, and a shootout on the marina pier in the middle of a
+// thunderstorm, the storm pinned overhead and the helicopter grounded while four of
+// the harbour crew guard a case on the boards under the lightning — and a
 // five-star finale — plus repeatable street races
 // and courier runs that pay generously on the side. Earn cash and stay ahead of the Solmar
 // police as the wanted level rises: the chase cars aim where you are heading, three stars
@@ -31,10 +34,15 @@
 // unfolds over half a second with chevrons painted ahead of it, and a car that
 // crosses a laid strip loses half its speed and half its grip until the tyres are
 // swapped, at a kerbside repair bay or off-screen — and at five stars a police helicopter hangs over
-// the chase with its searchlight on you — unless a thunderstorm has rolled in, when the
+// the chase with its searchlight on you — a real beam now, its pool of light lagging behind
+// a swerving driver, locking on while it holds you and sweeping a circle around your last
+// seen spot when it loses you, and vectoring the nearest cruisers in a tenth faster while
+// the lock holds — unless a thunderstorm has rolled in, when the
 // helicopter stays grounded and the pursuit cars hold back to 85% of their pace on the
 // wet roads. The traffic, meanwhile, obeys the city's
-// working traffic signals — and queues at the red ones with its brake lights lit.
+// working traffic signals — timed as a green wave down the avenues, so a driver holding
+// traffic speed meets green after green, and queues at the red ones with its brake lights lit —
+// and the pedestrians wait at the kerb for the walk signal before crossing at the zebra crossings.
 // Over the middle avenues runs the city's elevated loop line: a concrete viaduct on
 // pillars carrying a three-car train in a teal-and-cream livery that circles downtown
 // forever, braking into its two stations — Estacion Norte and Estacion Sur — holding
@@ -44,8 +52,11 @@
 // trail engine smoke — and the light street props, dock crates, litter bins and rusty
 // harbour barrels, split open when a fast car ploughs through them and leave their
 // wreckage lying on the ground.
-// The city itself is denser and better lit in this version: buildings drawn as raised
-// blocks with lit windows, neon signs and awnings, glowing billboards and litter bins on
+// This version adds two jobs before the finale — three drops across town in one night, and a
+// shootout on the marina pier in the middle of a thunderstorm — reworks the five-star helicopter
+// into a hunting searchlight that lags, locks and sweeps, and retimes the city's traffic signals
+// as a green wave with walk signals at every zebra crossing. The city itself is denser and better lit:
+// buildings drawn as raised blocks with lit windows, neon signs and awnings, glowing billboards and litter bins on
 // the corners, seven car body shapes with glass and
 // brake lights — sedans, vans, a limousine, motorcycles with riders — yellow taxis, park
 // plazas with fountains, street props, an industrial port district of container yards and

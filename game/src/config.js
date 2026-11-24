@@ -35,7 +35,10 @@ export const CITY_POPULATION = {
 
 // Traffic signals run on one shared cycle, in seconds: five of green for one direction,
 // one of amber, then the cross street gets its turn. world.js phases each intersection
-// off this cycle so the whole grid does not change at once.
+// off this cycle with a green-wave offset (signalOffset), so a driver holding traffic
+// speed down an avenue meets green after green instead of one city-wide change —
+// and the zebra crossings at every intersection get their own walk phase, read off
+// the same cycle: a walker crosses while the traffic that would cut the zebra is stopped.
 export const SIGNAL_CYCLE = 12;
 
 // The elevated loop line: a three-car train circling downtown on a viaduct built over
@@ -162,6 +165,11 @@ export const COP = {
   aimLead: 0.42, // seconds of player travel the chase cars aim ahead by
   heliSpeed: 660, // the five-star helicopter: faster than any car in the city, or it is no threat
   heliLead: 0.35, // seconds of player travel the helicopter aims ahead by
+  heliBeamLag: 2.2, // per second: how fast the searchlight's ground pool chases the player — a hard swerve leaves the light behind
+  heliBeamRadius: 95, // the pool's radius on the ground: inside it, the lock builds
+  heliLockRate: 0.5, // lock gained per second while the beam covers the player
+  heliSweepRadius: 230, // the circle the bird sweeps around the player's last seen spot once the beam loses him
+  heliCatchup: 1.15, // extra pace while the bird is far behind its target, so a long straight never shakes it for good
   stormSlow: 0.85, // wet roads in a thunderstorm: pursuit cars hold 85% of their pace
 };
 

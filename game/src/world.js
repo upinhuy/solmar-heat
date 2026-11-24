@@ -8,7 +8,8 @@
 // north and east edges, beyond the streets — except where the airfield cuts in: along the
 // north edge, east of centre, a little airfield with a runway, a hangar and a prop plane
 // flying touch-and-go circuits over the northern blocks. Every intersection carries a working
-// traffic signal, phased off one shared cycle, and the traffic obeys it. Over the middle
+// traffic signal, phased off one shared cycle with a green-wave offset, and the traffic obeys it — and the zebra crossings at every intersection carry
+// their own walk phase, so pedestrians wait at the kerb while the traffic that would cut the zebra is flowing and cross when it stops. Over the middle
 // avenues runs the elevated loop line: a concrete viaduct on pillars, following the
 // street centrelines so it never crosses a rooftop, with two stations and a three-car
 // train that circles it forever (state.js drives the train; this file owns the track).
@@ -88,6 +89,18 @@ export function signalPhase(signal, time) {
   if (t < 6) return { ns: 'yellow', ew: 'red' };
   if (t < 11) return { ns: 'red', ew: 'green' };
   return { ns: 'red', ew: 'yellow' };
+}
+
+/**
+ * The green-wave offset for the intersection at grid (ix, iy). A car at traffic speed
+ * covers one block (ROAD_GAP) in two seconds, so each intersection east or south of the
+ * last turns green two seconds later: a driver holding traffic speed down an avenue
+ * arrives at every light just as it turns — the phase at the next intersection is the
+ * same as the one he just left. Westbound and northbound drivers meet the anti-wave
+ * instead, and wait their turn like everyone else.
+ */
+export function signalOffset(ix, iy) {
+  return (((-(ix + iy) * 2) % SIGNAL_CYCLE) + SIGNAL_CYCLE) % SIGNAL_CYCLE;
 }
 
 // ---------------------------------------------------------------------------
@@ -350,7 +363,7 @@ export function createCity(random) {
   });
   for (let ix = 0; ix < 8; ix += 1) {
     for (let iy = 0; iy < 8; iy += 1) {
-      signals.push({ x: ROADS[ix], y: ROADS[iy], offset: (ix * 5 + iy * 7) % SIGNAL_CYCLE });
+      signals.push({ x: ROADS[ix], y: ROADS[iy], offset: signalOffset(ix, iy) });
     }
   }
   const half = ROAD_WIDTH / 2;

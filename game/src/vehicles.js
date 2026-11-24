@@ -1,7 +1,8 @@
 // Cars and people: the player driving, traffic following the streets (and yielding instead
 // of piling up — and easing off along the coast road, where the promenade crowds cross to
-// the beach), pedestrians on the sidewalks who scatter when a car comes at them fast,
-// bullets and particles. Cars come in several body shapes — sedan, hatchback, estate wagon,
+// the beach), pedestrians on the sidewalks who scatter when a car comes at them fast and
+// wait at the kerb for the walk signal before crossing at an intersection, bullets and
+// particles. Cars come in several body shapes — sedan, hatchback, estate wagon,
 // pickup, van, the low sport shape, a long limousine and a narrow motorcycle with a rider — each with
 // its own size, and the odd yellow taxi among the sedans. Brake lights flare when a car
 // slows hard, and police light bars each flash on their own phase. Cars also carry their
@@ -12,7 +13,7 @@
 // wingtips while it climbs, gone a second later.
 import { CAR, MARKET, PED_SPEED, PLAYER, REPAIR, ROAD_WIDTH, SPIKE, TRAFFIC_SPEED, WORLD } from './config.js';
 import { angleDelta, clamp, distance, intRange, pick, pickWeighted, range } from './random.js';
-import { gridTarget, hitsBuilding, MARKET_BOUNDS, MARKET_STAGE, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
+import { gridTarget, hitsBuilding, MARKET_BOUNDS, MARKET_STAGE, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalOffset, signalPhase, ROADS } from './world.js';
 
 const CAR_COLORS = [
   '#b8443a', '#3a6db8', '#c9a13b', '#4d8a4d', '#7a4d8a', '#c9c9c9', '#3a3a3a', '#d06a2c',
@@ -231,7 +232,7 @@ export function updateTraffic(car, dt, random, buildings, others, time) {
         if (aheadDist < ROAD_WIDTH / 2 + 4) break; // inside the box: carry on through
         const ix = ROADS.indexOf(vertical ? cross : line);
         const iy = ROADS.indexOf(vertical ? line : cross);
-        const phase = signalPhase({ offset: (ix * 5 + iy * 7) % 12 }, time);
+        const phase = signalPhase({ offset: signalOffset(ix, iy) }, time);
         const mine = vertical ? phase.ns : phase.ew;
         const stopDist = aheadDist - (ROAD_WIDTH / 2 + 9);
         const mustStop = mine === 'red' || (mine === 'yellow' && stopDist > 16);
@@ -385,6 +386,38 @@ export function updatePed(ped, dt, random, threat, game) {
     }
   }
   const want = Math.atan2(ped.target.y - ped.y, ped.target.x - ped.x);
+  // Pedestrian crossings: a walker about to step off the kerb onto a street waits for
+  // the walk signal when the crossing is at an intersection. The walk phase is the
+  // traffic's red for the direction being crossed — the zebra is safe while the cars
+  // that would cut it are stopped. Away from an intersection there is no signal to
+  // read, so the walker jaywalks as before; a fleeing walker never waits.
+  if (game && game.time !== undefined) {
+    const stepX = Math.cos(ped.angle) * ped.speed * dt;
+    const stepY = Math.sin(ped.angle) * ped.speed * dt;
+    const nx = ped.x + stepX;
+    const ny = ped.y + stepY;
+    let crossed = null; // {axis: 'x'|'y', line} — the road centreline this step would cross
+    for (const r of ROADS) {
+      if ((ped.x - r) * (nx - r) < 0) { crossed = { axis: 'x', line: r }; break; }
+      if ((ped.y - r) * (ny - r) < 0) { crossed = { axis: 'y', line: r }; break; }
+    }
+    if (crossed) {
+      const mx = (ped.x + nx) / 2;
+      const my = (ped.y + ny) / 2;
+      const ixLine = nearestRoadLine(mx);
+      const iyLine = nearestRoadLine(my);
+      if (Math.abs(mx - ixLine) < 100 && Math.abs(my - iyLine) < 100) {
+        const phase = signalPhase({ offset: signalOffset(ROADS.indexOf(ixLine), ROADS.indexOf(iyLine)) }, game.time);
+        const walk = crossed.axis === 'x' ? phase.ns === 'red' : phase.ew === 'red';
+        if (!walk) {
+          ped.waiting = true;
+          ped.walkPhase += dt * 2; // waiting at the kerb: a small idle shuffle, not a stride
+          return;
+        }
+      }
+    }
+    ped.waiting = false;
+  }
   ped.angle += clamp(angleDelta(ped.angle, want), -3 * dt, 3 * dt);
   ped.x += Math.cos(ped.angle) * ped.speed * dt;
   ped.y += Math.sin(ped.angle) * ped.speed * dt;
