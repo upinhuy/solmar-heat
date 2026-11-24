@@ -273,8 +273,9 @@ export function stageShot(name, game) {
     game.clock = 20 * 60 + 30; // 20:30 — the market at its liveliest, lanterns lit
     startRun(game);
     noActivities(game);
-    // Rico walks into the plaza from the south, toward the stage — the stalls and
-    // string lights around him, the crowd thick after dark.
+    // Rico walks into the plaza from the south, toward the stage — the ten stalls
+    // and the paper lanterns around him, the crowd thick after dark and gathered
+    // for the band's set, the string lights sagging overhead.
     game.player.x = 1500;
     game.player.y = 1260;
     game.player.health = 10000; // a staged scene: the walk lasts the photograph
@@ -317,14 +318,16 @@ export function stageShot(name, game) {
     game.police.heli = null;
     // Scene dressing: a fresh spike strip across the road ahead and a roadblock
     // behind it, so the frame catches the strip's teeth and the parked cruisers
-    // together — the same geometry setRoadblock lays down in a real chase.
+    // together — the same geometry setRoadblock lays down in a real chase. The
+    // staged strip is fully unfolded (deploy 1): the photograph is of a live strip,
+    // teeth out, with its warning chevrons painted on the road ahead of it.
     const car = game.player.car;
     const stripAhead = { x: car.x + Math.cos(car.angle) * 320, y: car.y + Math.sin(car.angle) * 320 };
     const stripSpot = nearestRoadPoint(stripAhead.x, stripAhead.y);
     const blockAhead = { x: car.x + Math.cos(car.angle) * 450, y: car.y + Math.sin(car.angle) * 450 };
     const blockSpot = nearestRoadPoint(blockAhead.x, blockAhead.y);
     const onVertical = Math.abs(blockSpot.x - blockAhead.x) < Math.abs(blockSpot.y - blockAhead.y);
-    game.police.strips.push({ x: stripSpot.x, y: stripSpot.y, angle: onVertical ? 0 : Math.PI / 2, hit: false });
+    game.police.strips.push({ x: stripSpot.x, y: stripSpot.y, angle: onVertical ? 0 : Math.PI / 2, hit: false, deploy: 1 });
     for (const offset of [-19, 19]) {
       const cop = makeCar(game.rng, {
         x: onVertical ? blockSpot.x + offset : blockSpot.x,

@@ -10,8 +10,11 @@
 // a parapet roof with clutter on top, a windowed south face below it, neon signboards and
 // striped awnings on the commercial blocks, billboards glowing over the corners and litter
 // bins at the kerbs. Downtown, one block is the night market quarter: warm festival paving,
-// eight food stalls with striped awnings and lanterns, a stage with a red curtain and a
-// band, and string lights sagging between posts over the crowd. Over the middle avenues rides the elevated railway: a concrete
+// ten stalls with striped awnings and lanterns — food, flowers and second-hand books —
+// a stage with a red curtain and a band that plays in sets, paper lanterns swaying from
+// the string lights, and a crowd that gathers for the music. At four stars the police lay
+// spike strips across the road, and two kerbside repair bays will swap a shredded set of
+// tyres for free. Over the middle avenues rides the elevated railway: a concrete
 // viaduct on pillars with pale rails, two canopied stations, and a three-car train in a
 // teal-and-cream livery circling above the traffic, its shadow sliding along the street
 // below — drawn over the ground traffic, because everything on the street passes under
@@ -35,10 +38,10 @@
 // the whole view, with thunder rolling after it — and about a third of the strikes
 // answer themselves with a second, weaker bolt. Canvas
 // shapes and text, no assets.
-import { COLORS, FIRST_ROAD, PLANE, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
+import { COLORS, FIRST_ROAD, PLANE, REPAIR, ROAD_GAP, ROAD_WIDTH, TRAIN, WANTED_MAX, WORLD } from './config.js';
 import { COURIER_DEPOT, HIDEOUT, MISSIONS, RACE_START, activityMarker, missionMarker } from './missions.js';
 import { AIRPORT_DRUMS, AIRPORT_RUNWAY, AIRPORT_TAXIWAY, AIRPORT_WINDSOCK, BEACH_EAST, BEACH_PIER, BEACH_SAND_TOP, BEACH_WATER_Y, BOARDWALK_Y, PIER, ROADS, TRAIN_LOOP_LENGTH, WATER_Y, airportPointAt, signalPhase, trainPointAt } from './world.js';
-import { hash01, lerp, triWave } from './random.js';
+import { hash01, lerp, pulse as breathe, triWave } from './random.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -822,13 +825,30 @@ export function createRenderer(canvas) {
         context.fillRect(bx, by, b.w, b.h);
         context.fillStyle = shade('#6b4a2f', 1.25);
         context.fillRect(bx + 2, by + 2, b.w - 4, 6);
-        // Goods on the counter: bright dots in fruit and spice colours.
-        const goods = ['#e2583e', '#f2a541', '#3e8f6a', '#d94f70'];
-        for (let gI = 0; gI < 4; gI += 1) {
-          context.fillStyle = goods[(gI + b.x) % goods.length];
-          context.beginPath();
-          context.arc(bx + 7 + gI * 7, by + 5, 2.4, 0, Math.PI * 2);
-          context.fill();
+        // Goods on the counter: bright dots in fruit and spice colours — petals
+        // on the flower stall, book spines standing in a row on the book stall.
+        if (b.label === 'FLOWERS') {
+          const petals = ['#e87ab0', '#f2e3c9', '#d94f70', '#f2a541'];
+          for (let gI = 0; gI < 4; gI += 1) {
+            context.fillStyle = petals[(gI + b.x) % petals.length];
+            context.beginPath();
+            context.arc(bx + 7 + gI * 7, by + 5, 2.6, 0, Math.PI * 2);
+            context.fill();
+          }
+        } else if (b.label === 'BOOKS') {
+          const spines = ['#b8443a', '#2f6fd0', '#3e8f6a', '#c9a13b'];
+          for (let gI = 0; gI < 4; gI += 1) {
+            context.fillStyle = spines[(gI + b.x) % spines.length];
+            context.fillRect(bx + 5 + gI * 7, by + 1, 5, 8);
+          }
+        } else {
+          const goods = ['#e2583e', '#f2a541', '#3e8f6a', '#d94f70'];
+          for (let gI = 0; gI < 4; gI += 1) {
+            context.fillStyle = goods[(gI + b.x) % goods.length];
+            context.beginPath();
+            context.arc(bx + 7 + gI * 7, by + 5, 2.4, 0, Math.PI * 2);
+            context.fill();
+          }
         }
         // The awning: stripes overhanging the counter, and the stall's sign below it.
         for (let s = 0; s < b.w + 4; s += 8) {
@@ -998,6 +1018,25 @@ export function createRenderer(canvas) {
       for (const post of city.market.posts) {
         context.fillRect(cam.x + post.x - 1.5, cam.y + post.y - 16, 3, 16);
         context.fillRect(cam.x + post.x - 5, cam.y + post.y - 16, 10, 2);
+      }
+      // Paper lanterns hung from the spans: each one dangles off its wire on a short
+      // line, swaying on its own phase — a warm paper dot that breathes a little
+      // brighter and dimmer, so the light over the crowd never sits still.
+      for (const lamp of city.market.lanterns || []) {
+        const sway = triWave(game.time * 0.7 + lamp.phase) * 3;
+        const glow = 0.55 + 0.45 * breathe(game.time, 4, lamp.phase);
+        context.strokeStyle = 'rgba(40,32,24,0.8)';
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(cam.x + lamp.x, cam.y + lamp.y - 14);
+        context.lineTo(cam.x + lamp.x + sway, cam.y + lamp.y - 8);
+        context.stroke();
+        context.fillStyle = `rgba(255,184,77,${glow.toFixed(2)})`;
+        context.beginPath();
+        context.arc(cam.x + lamp.x + sway, cam.y + lamp.y - 6, 4, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = '#d98a2b';
+        context.fillRect(cam.x + lamp.x + sway - 1, cam.y + lamp.y - 11, 2, 2);
       }
     }
     // Gantry cranes over the port yards: two legs, a long beam with a sunlit top edge, a
@@ -1554,8 +1593,11 @@ export function createRenderer(canvas) {
   }
 
   function drawPed(ped, cam) {
+    // A market browser gathered for a set bounces to the beat on its own phase —
+    // the walk phase already runs faster during a set, and the bounce rides on it.
+    const bob = ped.bob !== undefined ? Math.abs(triWave(ped.walkPhase + ped.bob)) * 2 : 0;
     context.save();
-    context.translate(cam.x + ped.x, cam.y + ped.y);
+    context.translate(cam.x + ped.x, cam.y + ped.y - bob);
     if (ped.down > 0) {
       context.rotate(Math.PI / 2);
       context.globalAlpha = Math.max(0.25, Math.min(1, ped.down));
@@ -2134,15 +2176,22 @@ export function createRenderer(canvas) {
     drawCity(game, cam);
     // Police spike strips lie flat on the asphalt across the road ahead, drawn over
     // the road and under the cars: a dark band with steel teeth, dulled flat once
-    // they have bitten a set of tyres.
+    // they have bitten a set of tyres. A fresh strip unfolds over its deploy time —
+    // the band grows across the road and the teeth fan out one by one — and only a
+    // fully laid strip can bite. Ahead of every live strip, two reflective chevrons
+    // are painted on the asphalt, pointing at the teeth, so a driver gets a warning
+    // before the band itself is under the wheels.
     for (const strip of game.police.strips || []) {
+      const deploy = strip.deploy ?? 1;
+      const halfLen = 20 * deploy; // the band grows across the road as it unfolds
       context.save();
       context.translate(cam.x + strip.x, cam.y + strip.y);
       context.rotate(strip.angle);
       context.fillStyle = COLORS.spikeBand;
-      context.fillRect(-20, -6, 40, 12);
+      context.fillRect(-halfLen, -6, halfLen * 2, 12);
       context.fillStyle = strip.hit ? COLORS.spikeHit : COLORS.spikeTooth;
       for (let tx = -17; tx <= 17; tx += 6.8) {
+        if (Math.abs(tx) > halfLen - 2) continue; // teeth fan out with the band
         context.beginPath();
         context.moveTo(tx - 2.5, -6);
         context.lineTo(tx, strip.hit ? -1.5 : 6);
@@ -2150,7 +2199,59 @@ export function createRenderer(canvas) {
         context.closePath();
         context.fill();
       }
+      if (!strip.hit && deploy < 1) {
+        // Still unfolding: a pale outline where the band is about to be.
+        context.strokeStyle = 'rgba(242,227,201,0.5)';
+        context.lineWidth = 1;
+        context.strokeRect(-20, -6, 40, 12);
+      }
+      if (!strip.hit) {
+        // The warning chevrons, painted on the road on both approaches: pale Vs
+        // pointing at the strip along the road — a car-length and two ahead of it —
+        // so a driver gets a warning from either direction before the band is under
+        // the wheels. Local y is the road direction here; local x is the strip.
+        context.fillStyle = COLORS.spikeChevron;
+        for (const side of [-1, 1]) {
+          for (const ahead of [26, 44]) {
+            const cy = side * ahead;
+            context.beginPath();
+            context.moveTo(-7, cy + side * 4);
+            context.lineTo(0, cy - side * 4);
+            context.lineTo(7, cy + side * 4);
+            context.lineTo(0, cy + side * 1);
+            context.closePath();
+            context.fill();
+          }
+        }
+      }
       context.restore();
+    }
+    // Tyre-repair bays: two kerbside workshops painted on the asphalt — a green bay
+    // with a wrench mark, ringed while it is open. A bay that has just fixed a car
+    // sits grey and quiet until its cooldown runs out.
+    for (const bay of game.repairs || []) {
+      const bx = cam.x + bay.x;
+      const by = cam.y + bay.y;
+      const ring = bay.active ? 0.5 + 0.5 * breathe(game.time, 3, bay.x) : 0;
+      context.fillStyle = bay.active ? COLORS.repairBay : 'rgba(90,90,90,0.55)';
+      context.beginPath();
+      context.arc(bx, by, REPAIR.radius * 0.62, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = bay.active ? COLORS.repairRing : 'rgba(200,200,200,0.4)';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(bx, by, REPAIR.radius * 0.62 + 3 + ring * 3, 0, Math.PI * 2);
+      context.stroke();
+      // A wrench on the bay: a small spanner drawn in pale paint.
+      context.strokeStyle = bay.active ? '#e8f2e8' : 'rgba(220,220,220,0.5)';
+      context.lineWidth = 2.4;
+      context.beginPath();
+      context.moveTo(bx - 6, by + 6);
+      context.lineTo(bx + 4, by - 4);
+      context.stroke();
+      context.beginPath();
+      context.arc(bx + 6, by - 6, 3.4, 0.6, Math.PI * 1.7);
+      context.stroke();
     }
     // A thunderstorm darkens the streets beyond the hour's own dark, and the neon
     // burns harder in the wet — the storm's own light, on top of the night's.
@@ -2391,6 +2492,16 @@ export function createRenderer(canvas) {
         context.arc(cam.x + b.x + b.w / 2, cam.y + b.y + b.h / 2, 16, 0, Math.PI * 2);
         context.fill();
       }
+      // Each paper lantern breathes its own warm pool on the paving below it,
+      // waxing and waning on its own phase — the plaza's light never sits still.
+      for (const lamp of game.city.market.lanterns || []) {
+        if (lamp.x < vis.x0 || lamp.x > vis.x1 || lamp.y < vis.y0 || lamp.y > vis.y1) continue;
+        const breatheGlow = 0.05 + 0.05 * breathe(game.time, 4, lamp.phase);
+        context.fillStyle = `rgba(255,184,77,${breatheGlow.toFixed(3)})`;
+        context.beginPath();
+        context.arc(cam.x + lamp.x, cam.y + lamp.y + 4, 15, 0, Math.PI * 2);
+        context.fill();
+      }
       const st = game.city.market.stage;
       context.fillStyle = 'rgba(255,200,120,0.08)';
       context.beginPath();
@@ -2472,15 +2583,25 @@ export function createRenderer(canvas) {
       context.fillRect(x0 + mk.x * scale, y0 + mk.y * scale, mk.w * scale, mk.h * scale);
     }
     // Spike strips on the minimap: short red ticks across the road, gone when the heat dies.
+    // A strip still unfolding draws dimmer, so the minimap tells the truth about what can bite.
     context.strokeStyle = '#d0342c';
     context.lineWidth = 1.5;
     for (const strip of game.police.strips || []) {
       const dx = Math.cos(strip.angle);
       const dy = Math.sin(strip.angle);
+      context.globalAlpha = strip.hit ? 0.45 : 0.55 + 0.45 * (strip.deploy ?? 1);
       context.beginPath();
       context.moveTo(x0 + (strip.x - dx * 20) * scale, y0 + (strip.y - dy * 20) * scale);
       context.lineTo(x0 + (strip.x + dx * 20) * scale, y0 + (strip.y + dy * 20) * scale);
       context.stroke();
+    }
+    context.globalAlpha = 1;
+    // Tyre-repair bays on the minimap: green dots, dimmed while a bay is cooling down.
+    for (const bay of game.repairs || []) {
+      context.fillStyle = bay.active ? '#7fd069' : 'rgba(127,208,105,0.35)';
+      context.beginPath();
+      context.arc(x0 + bay.x * scale, y0 + bay.y * scale, 2.6, 0, Math.PI * 2);
+      context.fill();
     }
     // The elevated loop: a pale rounded square over the middle avenues, and the train
     // itself as a bright teal dot forever circling it.
@@ -2698,7 +2819,7 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Twenty-two story missions, a night market district under string lights, police spike strips at four stars, an elevated railway circling downtown, a five-star helicopter, and a prop plane over the airfield.',
+        'Twenty-two story missions, a night market district with ten stalls, paper lanterns and a band that plays in sets, police spike strips at four stars with warning chevrons and two kerbside repair bays, an elevated railway circling downtown, a five-star helicopter, and a prop plane over the airfield.',
         'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',

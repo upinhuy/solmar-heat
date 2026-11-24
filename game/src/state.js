@@ -17,7 +17,7 @@
 // ahead of its roadblocks — a car that crosses one shreds its tyres, limps away slow
 // and sliding, and throws tyre smoke until the tyres are swapped.
 import { AIR_LOOP_LENGTH, BEACH_EAST, BEACH_WATER_Y, TRAIN_LOOP_LENGTH, TRAIN_STATIONS, airportPointAt, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
-import { CAR, CITY_POPULATION, MARKET, PLANE, PLAYER, SAVE_KEY, STEP, STORM, TRAIN, WORLD } from './config.js';
+import { CAR, CITY_POPULATION, MARKET, PLANE, PLAYER, REPAIR, SAVE_KEY, STEP, STORM, TRAIN, WORLD } from './config.js';
 import { createRandom, clamp, distance, pick, smootherstep, smoothstep } from './random.js';
 import {
   cashBurst,
@@ -32,6 +32,7 @@ import {
   muzzleFlash,
   planeTrail,
   rainSplash,
+  repairCheck,
   shredSmoke,
   spikeCheck,
   sparks,
@@ -134,6 +135,15 @@ export function createGame(seed, saved) {
     weather: { rain: 0, nextChange: 75, lock: false, storm: 0, flash: 0, flicker: false, nextBolt: 8, boltX: 0, boltY: 0, boltSeed: 0, gust: 0, doubleStrike: false },
     shake: 0, // camera kick from the last hard impact, in world units, decaying
     marketTimer: 0, // seconds until the next market browser arrives after dark
+    // The band's sets: the stage plays for MARKET.setOn seconds, rests for
+    // MARKET.setOff, and plays again — the crowd gathers for every set and drifts
+    // back to the stalls in the quiet. A run opens mid-set, so the market is
+    // already singing when Rico first reaches the plaza.
+    bandSet: true,
+    bandTimer: MARKET.setOn,
+    // The tyre-repair bays: two kerbside workshops, each open until a shredded car
+    // uses it, then quiet for REPAIR.cooldown seconds before it opens again.
+    repairs: REPAIR.spots.map((s) => ({ x: s.x, y: s.y, label: s.label, active: true, cooldown: 0 })),
     dialogue: null,
     objectiveText: '',
     audio: null,
@@ -510,12 +520,14 @@ export function stepGame(game, input, dt) {
     }
     // Spike strips: a car that crosses one shreds its tyres — the timer starts in
     // spikeCheck, the handling loss lives in driveCar, and while the tyres are
-    // shredded the car throws tyre smoke off its wheels.
+    // shredded the car throws tyre smoke off its wheels. A shredded car that
+    // reaches a repair bay gets its tyres swapped on the spot instead.
     if (car.spikeTimer > 0) {
       car.spikeTimer -= dt;
       if (game.rng() < dt * 9) tyreSmoke(game, car);
     }
     spikeCheck(game, car, events);
+    repairCheck(game, car, events);
   } else {
     const move = input.move;
     const len = Math.hypot(move.x, move.y);
@@ -564,7 +576,22 @@ export function stepGame(game, input, dt) {
     : { x: player.x, y: player.y, danger: false };
   for (const ped of game.peds) {
     if (ped.contact || ped.hostile) continue; // mission people are driven by missions.js
-    updatePed(ped, dt, game.rng, threat);
+    updatePed(ped, dt, game.rng, threat, game); // the game carries the band-set flag the market browsers read
+  }
+  // The band plays in sets: MARKET.setOn seconds on, MARKET.setOff off, round and
+  // round. The crowd gathers for every set and drifts back to the stalls in the
+  // quiet; the murmur in main.js follows the same flag.
+  game.bandTimer -= dt;
+  if (game.bandTimer <= 0) {
+    game.bandSet = !game.bandSet;
+    game.bandTimer = game.bandSet ? MARKET.setOn : MARKET.setOff;
+  }
+  // A repair bay that was used stays quiet for its cooldown, then opens again.
+  for (const bay of game.repairs) {
+    if (bay.cooldown > 0) {
+      bay.cooldown -= dt;
+      if (bay.cooldown <= 0) bay.active = true;
+    }
   }
   // The night market breathes with the clock: after dark the crowd thickens toward
   // MARKET.crowdNight, one browser at a time; by day it thins back to crowdDay.
@@ -744,6 +771,10 @@ export function startRun(game) {
   game.police.cops = [];
   game.police.strips = []; // a fresh run starts with the roads swept clean
   game.police.heli = null; // a fresh run starts with an empty sky
+  for (const bay of game.repairs) { // and both repair bays open again
+    bay.active = true;
+    bay.cooldown = 0;
+  }
   if (!game.missions.active && !game.missions.finishedAll) {
     startMission(game, game.missions.index);
   }

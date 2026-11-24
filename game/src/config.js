@@ -81,13 +81,21 @@ export const STORM = {
 // The night market quarter: a festival district that comes alive after dark — food
 // stalls under string lights, a stage with a band, and crowds that thicken at night.
 // The market's own numbers: how many stalls ring the plaza, how big the crowd gets
-// by day and by night, and how far the market murmur carries.
+// by day and by night, and how far the market murmur carries. Ten stalls now: the
+// flower seller and the second-hand book stall joined the food row, and paper lanterns
+// hang from the string-light spans between the posts, swaying over the crowd. The band
+// plays in sets — twenty-five seconds on, fifteen off — and during a set the crowd
+// drifts toward the stage and bobs to the beat.
 export const MARKET = {
-  stalls: 8, // food stalls ringing the plaza
+  stalls: 10, // food and flower and book stalls ringing the plaza
   crowdDay: 10, // market browsers by day
   crowdNight: 22, // and by night, when the lanterns are lit
   spawnEvery: 1.5, // seconds between extra browsers arriving after dark
   murmurRange: 620, // how far the market's hum carries
+  lanterns: 6, // paper lanterns hung from the string-light spans
+  setOn: 25, // seconds the band plays per set
+  setOff: 15, // seconds of quiet between sets
+  gatherRadius: 70, // how close to the stage the crowd gathers during a set
 };
 
 // Police spike strips: at four stars and above the PD lays a strip across the road
@@ -103,6 +111,20 @@ export const SPIKE = {
   duration: 12, // seconds a shredding lasts before the tyres are swapped (off-screen)
   damage: 12, // the hit itself bends the car a little, on top of the handling loss
   ahead: 380, // how far ahead of the player the strip is laid
+  deployTime: 0.6, // seconds a strip takes to unfold on the asphalt before it can bite
+};
+
+// The tyre-repair bays: two kerbside workshops where a shredded car can be fixed for
+// free — drive over the bay and the tyres are swapped on the spot. A bay goes quiet
+// for a while after a repair, then opens again. Both sit on the kerb of a road the
+// player actually drives, so a shredding in a chase is a detour, not a death sentence.
+export const REPAIR = {
+  radius: 30, // drive within this of the bay's centre to use it
+  cooldown: 20, // seconds a bay stays closed after a repair
+  spots: [
+    { x: 470, y: 750, label: 'TALLER RICO' }, // the avenue west of the market
+    { x: 1970, y: 1650, label: 'MUELLE 12' }, // the coast road by the marina
+  ],
 };
 
 export const CAR = {
@@ -176,17 +198,24 @@ export const COLORS = {
   poolDeep: '#1f7f96',
   resort: ['#e8d8b0', '#dfc9a8', '#cfd8c2', '#e5c1b4', '#d8cf9f', '#c9d4de'],
   plaza: '#7d7468',
-  // The night market quarter: warm stall awnings in eight food-stall colours, lantern
+  // The night market quarter: warm stall awnings in ten stall colours, lantern
   // gold, the stage's red curtain over a wooden floor, and the spike strips the PD
   // lays across the road — a dark band with steel teeth, dulled once they have bitten.
+  // The paper lanterns strung between the posts glow warm after dark; the reflective
+  // chevrons painted ahead of a fresh strip warn a driver what is coming; and the
+  // tyre-repair bays are painted workshop green with a wrench on the asphalt.
   marketPlaza: '#8a6a52',
-  stallAwning: ['#e2583e', '#f2a541', '#3e8f6a', '#d94f70', '#4a7fc1', '#e8b23a', '#7a5fb0', '#c96a3b'],
+  stallAwning: ['#e2583e', '#f2a541', '#3e8f6a', '#d94f70', '#4a7fc1', '#e8b23a', '#7a5fb0', '#c96a3b', '#e87ab0', '#8a6f4d'],
   lantern: '#ffb84d',
+  lanternGlow: 'rgba(255,184,77,0.16)',
   stageCurtain: '#a83232',
   stageFloor: '#7a4a2b',
   spikeBand: '#2b2b2b',
   spikeTooth: '#c8ccd2',
   spikeHit: '#8a8f96',
+  spikeChevron: '#f2e3c9',
+  repairBay: '#2f7a4d',
+  repairRing: '#7fd069',
   race: '#3fd06a',
   courier: '#39c2d7',
   hostile: '#a03a5e',

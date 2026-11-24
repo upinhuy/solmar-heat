@@ -31,7 +31,7 @@ export function createPolice() {
     sirenOn: false,
     roadblockSet: false, // a roadblock is out for the current heat level
     roadblockWaves: 0, // roadblocks thrown at this heat so far (a second wave only at 5 stars)
-    strips: [], // spike strips laid across the road ahead of roadblocks: {x, y, angle, hit}
+    strips: [], // spike strips laid across the road ahead of roadblocks: {x, y, angle, hit, deploy} — deploy 0..1 is the strip unfolding on the asphalt; it only bites once fully laid
     heli: null, // the five-star helicopter: {x, y, angle, rotor, leaving} while it hunts
   };
 }
@@ -121,14 +121,17 @@ function setRoadblock(game) {
   // Ahead of the roadblock, the PD lays a spike strip across the road — 140 units
   // before the cars, so the player must choose: cross it and shred the tyres, or
   // swerve around its ends. At most SPIKE.maxStrips are out at once; a spent strip
-  // stays on the road, flattened, until the heat dies.
+  // stays on the road, flattened, until the heat dies. A fresh strip unfolds over
+  // SPIKE.deployTime seconds — the teeth fan out across the asphalt — and only bites
+  // once it is fully laid, so a driver who is already on top of it when it lands
+  // gets a heartbeat to swerve.
   if (police.strips.length < SPIKE.maxStrips) {
     const stripAhead = {
       x: clamp(player.x + Math.cos(heading) * SPIKE.ahead, 80, WORLD - 80),
       y: clamp(player.y + Math.sin(heading) * SPIKE.ahead, 80, WORLD - 80),
     };
     const stripSpot = nearestRoadPoint(stripAhead.x, stripAhead.y);
-    police.strips.push({ x: stripSpot.x, y: stripSpot.y, angle: onVertical ? 0 : Math.PI / 2, hit: false });
+    police.strips.push({ x: stripSpot.x, y: stripSpot.y, angle: onVertical ? 0 : Math.PI / 2, hit: false, deploy: 0 });
   }
   police.roadblockSet = true;
   police.roadblockWaves += 1;
@@ -159,6 +162,12 @@ export function updatePolice(game, dt, events) {
   if (police.wanted < COP.roadblockMinStars) {
     police.roadblockSet = false;
     police.roadblockWaves = 0;
+  }
+  // Fresh strips unfold on the asphalt over SPIKE.deployTime seconds: the teeth fan
+  // out across the road, and only a fully laid strip can bite — spikeCheck reads
+  // the same deploy flag, so a car crossing mid-unfold passes over harmlessly.
+  for (const strip of police.strips) {
+    strip.deploy = Math.min(1, (strip.deploy ?? 1) + dt / SPIKE.deployTime);
   }
   // Five stars, and every roadblock car has already broken ranks to chase: the PD gets
   // one more throw of the barricade across the road ahead.

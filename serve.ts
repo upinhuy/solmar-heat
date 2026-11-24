@@ -8,7 +8,9 @@
 // Two exceptions to "nothing clever": GET /__version answers a small JSON health check
 // naming the game, so a script can tell this server from any other on the machine — and
 // it also lists the ?shot= scene names the game stages, so a screenshot script can ask
-// the server what it can photograph before it starts a browser. Every file gets a weak
+// the server what it can photograph before it starts a browser. The health check also
+// names the version's headline features, so a smoke script can assert the build it is
+// looking at is the one it expects. Every file gets a weak
 // ETag from its size and mtime, so a browser reload during development can revalidate
 // cheaply: an If-None-Match that matches gets a 304. The cache-control is no-cache
 // (revalidate every time), not no-store — no-store would forbid the browser from keeping
@@ -78,7 +80,9 @@ createServer((request, response) => {
   if (pathname === '/__version') {
     // A one-line health check for scripts and curious players: which game this server
     // serves, which version of it, and which screenshot scenes it can stage, without downloading any of it.
-    const body = JSON.stringify({ game: 'Solmar Heat', version: 'v9', files: 'game/', shots: SHOTS, ok: true });
+    // The features list names what this build added over the last one, so a smoke
+    // script can assert it is talking to the right version before it starts a browser.
+    const body = JSON.stringify({ game: 'Solmar Heat', version: 'v9', files: 'game/', shots: SHOTS, features: ['night-market-10-stalls', 'paper-lanterns', 'band-sets', 'spike-deploy-animation', 'spike-chevrons', 'tyre-repair-bays'], ok: true });
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
     response.end(request.method === 'HEAD' ? undefined : body);
     return;

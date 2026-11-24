@@ -82,6 +82,16 @@ export function triWave(t) {
   return p < Math.PI ? p / (Math.PI / 2) - 1 : 3 - p / (Math.PI / 2);
 }
 
+/**
+ * A breathing pulse in [0, 1] with a smooth rise and fall: a lantern's glow
+ * waxing and waning, a repair bay's ring swelling as it waits for a car. `phase`
+ * offsets the cycle so neighbouring lights do not breathe in step.
+ */
+export function pulse(t, period, phase = 0) {
+  const p = (((t + phase) % period) + period) % period / period;
+  return 0.5 - 0.5 * Math.cos(p * Math.PI * 2);
+}
+
 /** Shortest signed turn from angle `from` to angle `to`, in radians. */
 export function angleDelta(from, to) {
   let d = (to - from) % (Math.PI * 2);

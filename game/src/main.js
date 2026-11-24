@@ -78,6 +78,10 @@ function runGame() {
         audio.spike();
         announce('Spike strip! Tyres shredded — handling is shot.');
       }
+      else if (event.type === 'repair') {
+        audio.repair();
+        announce('Tyres swapped at the repair bay — back to full grip.');
+      }
       else if (event.type === 'thunder') audio.thunder();
       else if (event.type === 'checkpoint') {
         audio.checkpoint();
@@ -223,10 +227,11 @@ function runGame() {
         audio.waves(Math.max(0, Math.min(1, (game.player.y - 1750) / 560)));
         // The night market follows the player too: its murmur swells as he reaches
         // the plaza and fades as he leaves the quarter — closest in the crowd itself.
+        // While the band is playing a set the murmur carries the beat with it.
         if (game.city.market) {
           const mk = game.city.market.bounds;
           const dMarket = Math.hypot(game.player.x - (mk.x + mk.w / 2), game.player.y - (mk.y + mk.h / 2));
-          audio.market(Math.max(0, Math.min(1, 1 - dMarket / MARKET.murmurRange)));
+          audio.market(Math.max(0, Math.min(1, 1 - dMarket / MARKET.murmurRange)), game.bandSet);
         }
         if (result.busted) {
           screen = SCREEN_BUSTED;

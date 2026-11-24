@@ -14,15 +14,20 @@
 // handoff under the elevated line's north station that turns into a timed getaway, an
 // ambush under the viaduct where a rival crew fights for a case, a storm-timed getaway in
 // a marked car from the airfield, an ambush over a cash case on the runway itself, a
-// firefight in the night market quarter — food stalls, string lights and a band on the
-// stage — and a four-star getaway down Spike Alley, where the police lay spike strips
-// across the road ahead and a car that crosses one shreds its tyres, and a
+// firefight in the night market quarter — ten stalls, paper lanterns swaying from
+// the string lights, a band playing in sets while the crowd gathers at the stage — and
+// a four-star getaway down Spike Alley, where the police lay spike strips across the
+// road ahead — the strips unfold over half a second, with reflective chevrons painted
+// on the asphalt ahead of them, and a shredded car can limp to one of two kerbside
+// repair bays for a free set of tyres — and a
 // five-star finale — plus repeatable street races
 // and courier runs that pay generously on the side. Earn cash and stay ahead of the Solmar
 // police as the wanted level rises: the chase cars aim where you are heading, three stars
 // brings an extra car and a faster response, at four stars the
-// PD parks roadblocks across the road and lays spike strips ahead of them — a car that
-// crosses one loses half its speed and half its grip until the tyres are swapped — and at five stars a police helicopter hangs over
+// PD parks roadblocks across the road and lays spike strips ahead of them — a strip
+// unfolds over half a second with chevrons painted ahead of it, and a car that
+// crosses a laid strip loses half its speed and half its grip until the tyres are
+// swapped, at a kerbside repair bay or off-screen — and at five stars a police helicopter hangs over
 // the chase with its searchlight on you — unless a thunderstorm has rolled in, when the
 // helicopter stays grounded and the pursuit cars hold back to 85% of their pace on the
 // wet roads. The traffic, meanwhile, obeys the city's

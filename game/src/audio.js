@@ -29,6 +29,7 @@ export function createAudio() {
   let marketSource = null;
   let marketGain = null;
   let marketLfo = null;
+  let bandBeatGain = null; // the band's beat: a slow throb under the murmur while a set plays
   let lastThunder = 0;
   let muted = false;
 
@@ -123,6 +124,15 @@ export function createAudio() {
       noiseBurst(0.3, 5200, 0.5);
       noiseBurst(0.18, 3000, 0.35);
       tone(95, 0.25, 'sawtooth', 0.3, 38);
+    },
+    /** Tyres swapped at a repair bay: three ratchet clicks, then a rising chime as
+     * the fresh set goes on — call once per repair, from the repair event. */
+    repair() {
+      noiseBurst(0.05, 6000, 0.3);
+      setTimeout(() => noiseBurst(0.05, 6000, 0.3), 90);
+      setTimeout(() => noiseBurst(0.05, 6000, 0.3), 180);
+      tone(520, 0.12, 'sine', 0.16, 300);
+      setTimeout(() => tone(780, 0.16, 'sine', 0.16, 340), 200);
     },
     /** The elevated train passing: a low rumble of filtered noise whose loudness
      * follows how close the consist is (0 = the far side of the loop, silent). Call
@@ -323,10 +333,13 @@ export function createAudio() {
     /** The night market's murmur: a crowd wash of bandpassed noise that swells and
      * thins on a slow LFO — voices, plates, the band on the stage — whose loudness
      * follows how close the player stands to the plaza (0 = elsewhere, silent).
-     * Call every frame; it fades out as the player leaves the quarter. */
-    market(closeness) {
+     * While the band is playing a set (`band` true) a slow two-beat throb rides
+     * under the murmur, so the music reads even before the player reaches the
+     * stage. Call every frame; it fades out as the player leaves the quarter. */
+    market(closeness, band) {
       if (closeness <= 0) {
         if (marketGain) marketGain.gain.setTargetAtTime(0, context.currentTime, 0.5);
+        if (bandBeatGain) bandBeatGain.gain.setTargetAtTime(0, context.currentTime, 0.5);
         return;
       }
       if (!ensure()) return;
@@ -355,8 +368,19 @@ export function createAudio() {
         marketGain.connect(master);
         marketSource.start();
         marketLfo.start();
+        // The band's beat: a slow two-hertz throb that rides the murmur's gain
+        // while a set is playing, and falls silent in the quiet between sets.
+        const bandOsc = context.createOscillator();
+        bandOsc.type = 'sine';
+        bandOsc.frequency.value = 2.1;
+        bandBeatGain = context.createGain();
+        bandBeatGain.gain.value = 0;
+        bandOsc.connect(bandBeatGain);
+        bandBeatGain.connect(marketGain.gain);
+        bandOsc.start();
       }
       marketGain.gain.setTargetAtTime(0.02 + closeness * 0.06, context.currentTime, 0.8);
+      if (bandBeatGain) bandBeatGain.gain.setTargetAtTime(band ? 0.025 : 0, context.currentTime, 0.8);
     },
     /** The sea along the south shore: a slow-breathing wash of low noise whose loudness
      * follows how close the player stands to the water (0 = inland, silent). Call every

@@ -10,9 +10,9 @@
 // arcade: accelerate, steer by speed, grip damps sideways slide, buildings stop you with
 // a thud. The airfield's prop plane leaves a different trail: thin white puffs off its
 // wingtips while it climbs, gone a second later.
-import { CAR, PED_SPEED, PLAYER, ROAD_WIDTH, SPIKE, TRAFFIC_SPEED, WORLD } from './config.js';
+import { CAR, MARKET, PED_SPEED, PLAYER, REPAIR, ROAD_WIDTH, SPIKE, TRAFFIC_SPEED, WORLD } from './config.js';
 import { angleDelta, clamp, distance, intRange, pick, range } from './random.js';
-import { gridTarget, hitsBuilding, MARKET_BOUNDS, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
+import { gridTarget, hitsBuilding, MARKET_BOUNDS, MARKET_STAGE, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
 
 const CAR_COLORS = [
   '#b8443a', '#3a6db8', '#c9a13b', '#4d8a4d', '#7a4d8a', '#c9c9c9', '#3a3a3a', '#d06a2c',
@@ -314,6 +314,8 @@ export function makePed(random, x, y) {
 /**
  * A market browser: a pedestrian who lives in the night market quarter instead of the
  * sidewalks — slower, browsing between the stalls, never wandering off the plaza.
+ * `bob` is the browser's own phase for the band-set bounce: during a set the crowd
+ * drifts toward the stage and bobs to the beat, each browser on its own phase.
  */
 export function makeMarketPed(random) {
   const ped = makePed(random);
@@ -322,14 +324,18 @@ export function makeMarketPed(random) {
   ped.speed = PED_SPEED * 0.7; // browsers stroll, they do not hurry
   ped.market = true;
   ped.target = null;
+  ped.bob = random() * Math.PI * 2;
   return ped;
 }
 
 /**
  * Pedestrians stroll along the sidewalks and cross streets at intersections. When `threat`
  * is a fast car bearing down close by, they dive out of the way and run until it passes.
+ * Market browsers get one more behaviour: while the band is playing a set (`game.bandSet`)
+ * they drift toward the stage and gather in front of it, bobbing to the beat on their own
+ * `bob` phase — and when the set ends they wander back out among the stalls.
  */
-export function updatePed(ped, dt, random, threat) {
+export function updatePed(ped, dt, random, threat, game) {
   if (ped.down > 0) {
     // Knocked down: lie still until the timer runs out, then get up and walk off.
     ped.down -= dt;
@@ -352,8 +358,16 @@ export function updatePed(ped, dt, random, threat) {
     ped.walkPhase += dt * 15;
     return;
   }
+  const gathering = ped.market && game && game.bandSet;
   if (!ped.target || distance(ped.x, ped.y, ped.target.x, ped.target.y) < 10) {
-    if (ped.market) {
+    if (gathering) {
+      // The band is playing: gather in a loose crowd in front of the stage, inside
+      // the gather radius, facing the curtain — the set's audience, not browsers.
+      ped.target = {
+        x: MARKET_STAGE.x + MARKET_STAGE.w / 2 + (random() - 0.5) * 2 * MARKET.gatherRadius,
+        y: MARKET_STAGE.y + MARKET_STAGE.h + 8 + random() * MARKET.gatherRadius,
+      };
+    } else if (ped.market) {
       // Market browsers pick their next stall inside the plaza and stay there.
       ped.target = {
         x: MARKET_BOUNDS.x + 20 + random() * (MARKET_BOUNDS.w - 40),
@@ -371,7 +385,9 @@ export function updatePed(ped, dt, random, threat) {
   ped.y += Math.sin(ped.angle) * ped.speed * dt;
   ped.x = clamp(ped.x, 40, WORLD - 40);
   ped.y = clamp(ped.y, 40, WORLD - 40);
-  ped.walkPhase += dt * 9;
+  // A browser gathered for a set bobs to the beat — a faster walk phase, on its own
+  // bob phase — instead of strolling; everyone else walks at the usual pace.
+  ped.walkPhase += dt * (gathering ? 14 : 9);
 }
 
 export function makeBullet(x, y, angle) {
@@ -426,12 +442,14 @@ export function tyreSmoke(game, car) {
  * centreline. The first crossing shreds the car's tyres — `spikeTimer` starts, the car
  * takes damage, sparks fly and the tyres throw a burst of smoke — and the strip is
  * spent (`hit`), so a second car can cross the same spot unharmed. Only the car's own
- * strip timer matters afterwards: driveCar reads it every step.
+ * strip timer matters afterwards: driveCar reads it every step. A strip still unfolding
+ * (`deploy` under 1) cannot bite yet: a car crossing mid-unfold passes over harmlessly.
  */
 export function spikeCheck(game, car, events) {
   if (!game.police || !game.police.strips) return;
   for (const strip of game.police.strips) {
     if (strip.hit) continue;
+    if ((strip.deploy ?? 1) < 1) continue; // still unfolding — no teeth out yet
     const dx = car.x - strip.x;
     const dy = car.y - strip.y;
     const alongStrip = Math.abs(dx * Math.cos(strip.angle) + dy * Math.sin(strip.angle));
@@ -444,6 +462,28 @@ export function spikeCheck(game, car, events) {
       shredSmoke(game, car);
       if (events) events.push({ type: 'spike', x: car.x, y: car.y });
     }
+  }
+}
+
+/**
+ * Tyre-repair bays: two kerbside workshops where a shredded car is fixed for free.
+ * Drive a car with shredded tyres over an open bay and the tyres are swapped on the
+ * spot — the shred timer clears, the car straightens out a little, and the bay goes
+ * quiet for REPAIR.cooldown seconds before it opens again. A car with sound tyres
+ * rolling over a bay does nothing: the bay is for wrecks, not for show.
+ */
+export function repairCheck(game, car, events) {
+  if (!game.repairs || !car || car.spikeTimer <= 0) return;
+  for (const bay of game.repairs) {
+    if (!bay.active) continue;
+    if (distance(car.x, car.y, bay.x, bay.y) > REPAIR.radius) continue;
+    car.spikeTimer = 0;
+    car.damage = Math.max(0, (car.damage || 0) - 20); // a fresh set of tyres, and the worst of the dent knocked out
+    bay.active = false;
+    bay.cooldown = REPAIR.cooldown;
+    sparks(game, bay.x, bay.y, 6);
+    if (events) events.push({ type: 'repair', x: bay.x, y: bay.y });
+    return;
   }
 }
 

@@ -305,6 +305,7 @@ export function createCity(random) {
   const skyline = []; // distant towers along the north and east edges, outside the streets
   const marketLights = []; // the night market's string-light spans, post to post across the plaza
   const marketPosts = []; // the poles the market's string lights hang from
+  const marketLanterns = []; // paper lanterns hung from the spans, each with its own sway phase
   const signals = []; // a traffic signal at every intersection, phased off the shared cycle
   // The viaduct's pillars: a post under the track every 120 units, standing in the
   // middle of the avenues the loop rides. Pure geometry — no randomness — so the
@@ -390,8 +391,8 @@ export function createCity(random) {
       }
       // The night market quarter — block ix 4, iy 3, downtown: the block is given over
       // to an evening festival instead of a building. A stage anchors the north side
-      // (solid, like any building, with a red curtain and a MERCADO sign), eight food
-      // stalls ring the plaza's edges (solid too — each one a counter with a striped
+      // (solid, like any building, with a red curtain and a MERCADO sign), ten stalls
+      // ring the plaza's edges (solid too — each one a counter with a striped
       // awning in its own colour and a sign over the goods), and string lights cross
       // the plaza from post to post. The stalls and the stage live in the buildings
       // list, so cars collide with them; the light spans live in the market record.
@@ -419,6 +420,8 @@ export function createCity(random) {
           { x: bx + bw - 40, y: by + 160, label: 'BBQ' },
           { x: bx + 60, y: by + bh - 28, label: 'NOODLES' },
           { x: bx + 120, y: by + bh - 28, label: 'COFFEE' },
+          { x: bx + 6, y: by + 10, label: 'FLOWERS' },
+          { x: bx + bw - 40, y: by + 10, label: 'BOOKS' },
         ];
         stallSpots.forEach((spot, i) => {
           const awning = COLORS.stallAwning[i % COLORS.stallAwning.length];
@@ -446,6 +449,23 @@ export function createCity(random) {
         }
         const span = (a, b) => marketLights.push({ x1: marketPosts[a].x, y1: marketPosts[a].y, x2: marketPosts[b].x, y2: marketPosts[b].y });
         span(0, 1); span(2, 3); span(0, 2); span(1, 3); span(0, 3); span(1, 2); span(4, 5);
+        // Paper lanterns hung from the string-light spans: one at the sag of each
+        // edge span, and two on the crossing diagonals — each with its own sway
+        // phase, so they never swing in step. The renderer hangs them off the wire
+        // with a short line and lets them breathe warm light after dark.
+        const lanternAt = (a, b, t) => {
+          const x1 = marketPosts[a].x;
+          const y1 = marketPosts[a].y;
+          const x2 = marketPosts[b].x;
+          const y2 = marketPosts[b].y;
+          const mx = (x1 + x2) / 2;
+          const my = (y1 + y2) / 2 + 12; // the sag, same dip the wire takes
+          const x = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * mx + t * t * x2;
+          const y = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * my + t * t * y2;
+          marketLanterns.push({ x, y, phase: random() * Math.PI * 2 });
+        };
+        lanternAt(0, 1, 0.5); lanternAt(2, 3, 0.5); lanternAt(0, 2, 0.5);
+        lanternAt(1, 3, 0.5); lanternAt(0, 3, 0.33); lanternAt(1, 2, 0.66);
         // Crates and a bin by the stalls: the market's own clutter, breakable like the
         // rest of the city's street props.
         props.push({ x: bx + 48, y: by + 52, w: 20, h: 20, kind: 'crate', angle: 0.2 });
@@ -635,7 +655,7 @@ export function createCity(random) {
     skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
     sy += w + 4 + random() * 22;
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail, airport, market: { bounds: MARKET_BOUNDS, stage: MARKET_STAGE, meet: MARKET_MEET, posts: marketPosts, lights: marketLights } };
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail, airport, market: { bounds: MARKET_BOUNDS, stage: MARKET_STAGE, meet: MARKET_MEET, posts: marketPosts, lights: marketLights, lanterns: marketLanterns } };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

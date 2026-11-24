@@ -1,10 +1,13 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Twenty missions in order, each a small state machine with an objective, a map marker,
+// Twenty-two missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
 // next. Two jobs work the beach resort district: a meet on
 // the sand that turns into a firefight among the umbrellas, and a timed run in a marked
 // coupe along the coast road to a drop at the far end of the beach. The last two jobs
-// before the finale work the elevated railway: a courier's handoff under Estacion Norte
+// before the finale work the night market quarter and its streets: a meet by the festival
+// stage that turns into a firefight among the ten stalls, and a four-star getaway in a
+// stolen coupe down Spike Alley, where the police lay strips across the road ahead. The
+// two jobs before those work the elevated railway: a courier's handoff under Estacion Norte
 // that turns into a timed getaway, and an ambush under the viaduct where a rival crew
 // tries to take a case back by force. The two jobs before those work the airfield on the
 // north edge: a pilot lands a case in the middle of a thunderstorm and Rico drives it
@@ -169,15 +172,15 @@ export const MISSIONS = [
     id: 'market',
     name: 'The Night Market',
     reward: 5400,
-    intro: ['Mara Solis: "The night market, Rico — lanterns, food stalls, a band on the stage, and a case changing hands in the crowd."', '"Meet my contact by the stage. It will not stay friendly — three of theirs wait in the plaza. Bring the case home."'],
+    intro: ['Mara Solis: "The night market, Rico — ten stalls under the lanterns now, flowers and books beside the food, a band on the stage playing in sets, and a case changing hands in the crowd."', '"Meet my contact by the stage. It will not stay friendly — three of theirs wait in the plaza, one of them by the flower stall. Bring the case home."'],
     objectives: ['Meet the contact by the market stage', 'Drop all three rivals', 'Grab the cash case', 'Bring the case to the hideout'],
   },
   {
     id: 'spikes',
     name: 'Spike Alley',
     reward: 5600,
-    intro: ['Mara Solis: "The blue coupe on the avenue west of the market, Rico — and the PD is laying strips tonight."', '"Four stars the moment you touch the wheel. Swerve around the strips, beat the roadblocks, one hundred and fifteen seconds to the drop."'],
-    objectives: ['Steal the marked coupe', 'Reach the drop before the clock runs out'],
+    intro: ['Mara Solis: "The blue coupe on the avenue west of the market, Rico — and the PD is laying strips tonight."', '"Four stars the moment you touch the wheel. Swerve around the strips, beat the roadblocks, one hundred and fifteen seconds to the drop — and if a strip does catch you, the repair bays on the avenue and the coast road will swap your tyres."'],
+    objectives: ['Steal the marked coupe', 'Reach the drop before the clock runs out — a repair bay swaps shredded tyres'],
     timer: 115,
   },
   {
@@ -243,7 +246,7 @@ function farPoint(game, from, minDist) {
   return randomRoadPoint(game.rng);
 }
 
-/** Begin mission `index` (0-19): set up its cars, people and first marker, say the intro. */
+/** Begin mission `index` (0-21): set up its cars, people and first marker, say the intro. */
 export function startMission(game, index) {
   const m = game.missions;
   const def = MISSIONS[index];
@@ -1004,9 +1007,10 @@ export function updateMissions(game, dt, events) {
         game.peds = game.peds.filter((p) => p !== m.contact);
         m.contact = null;
         m.step = 1;
-        // Three rivals spread across the plaza between the stalls: warm lantern
-        // light, loud music, and guns under the awnings.
-        const offsets = [[-70, -10], [70, 10], [0, 60]];
+        // Three rivals spread across the plaza between the stalls: one by the
+        // flower stall's corner, one by the juice stall, one by the south row —
+        // warm lantern light, loud music, and guns under the awnings.
+        const offsets = [[-80, -100], [70, 10], [0, 60]];
         m.hostiles = offsets.map(([ox, oy]) => {
           const h = makePed(game.rng, m.casePoint.x + ox, m.casePoint.y + oy);
           h.shirt = '#a03a5e';
