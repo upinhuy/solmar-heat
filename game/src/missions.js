@@ -8,14 +8,16 @@
 // that turns into a timed getaway, and an ambush under the viaduct where a rival crew
 // tries to take a case back by force. The two jobs before those work the airfield on the
 // north edge: a pilot lands a case in the middle of a thunderstorm and Rico drives it
-// home against the clock, and a rival crew guards a case on the tarmac that has to be
-// taken by force before their plane lifts off. Between story jobs,
+// home against the clock — the storm rolls in the moment that job starts and only
+// breaks once the case is home — and a rival crew guards a case on the tarmac that has to be
+// taken by force before their plane lifts off, the plane coming in low over the fight.
+// Between story jobs,
 // two repeatable side activities pay cash — generously, so a
 // free-roaming Rico can earn his keep: street races from the green flag and courier runs
 // from the depot — they run on their own state, alongside whatever the story is doing.
 import { distance } from './random.js';
 import { cashBurst, makeCar, makePed, makeSportCar, muzzleFlash } from './vehicles.js';
-import { AIRPORT_CAR, AIRPORT_MEET, AIRSTRIP, BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, PORT_SPOT, SHOWROOM_SPOT, STATION_MEET, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { AIRPORT_CAR, AIRPORT_MEET, AIRSTRIP, BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, PORT_SPOT, SHOWROOM_SPOT, STATION_MEET, AIR_LOOP_LENGTH, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import { addWanted, setWanted } from './police.js';
 
 export const HIDEOUT = { x: 150, y: 2100 };
@@ -336,7 +338,13 @@ export function startMission(game, index) {
     m.marker = { x: 450, y: 1372 };
   } else if (def.id === 'stormrun') {
     // The pilot waits out the storm on the grass by the hangar, and the marked car
-    // stands kerbside on the north road, facing east toward the city.
+    // stands kerbside on the north road, facing east toward the city. The storm is
+    // the job: it rolls in the moment the mission starts and stays pinned overhead
+    // until the case is home — the helicopter stays grounded and the streets stay wet.
+    game.weather.rain = 1;
+    game.weather.storm = 1;
+    game.weather.lock = true;
+    game.weather.nextBolt = 1.5;
     m.contact = { x: AIRPORT_MEET.x, y: AIRPORT_MEET.y, angle: Math.PI / 2, shirt: '#d06a2c', target: null, down: 0, fade: 0, walkPhase: 0, contact: true };
     game.peds.push(m.contact);
     const car = makeCar(game.rng, { x: AIRPORT_CAR.x, y: AIRPORT_CAR.y, angle: AIRPORT_CAR.angle, kind: 'mission', shape: 'sport', color: '#d06a2c', missionCar: true });
@@ -346,6 +354,9 @@ export function startMission(game, index) {
   } else if (def.id === 'airlift') {
     // The case waits on the tarmac itself, in the middle of the runway, where the
     // rival crew guards it under the circling plane: open asphalt, nowhere to hide.
+    // The plane is put on final approach as the job starts, so it comes in low over
+    // the fight — a low pass over the tarmac while Rico takes the case.
+    game.plane.s = AIR_LOOP_LENGTH - 300;
     m.casePoint = { x: AIRSTRIP.x, y: AIRSTRIP.y };
     m.marker = { x: AIRSTRIP.x, y: AIRSTRIP.y };
   } else if (def.id === 'finale') {
@@ -365,6 +376,16 @@ function finishMission(game, events) {
   game.cash += def.reward;
   cashBurst(game, game.player.x, game.player.y);
   events.push({ type: 'cash', amount: def.reward });
+  if (def.id === 'stormrun') {
+    // The storm was the job's weather, pinned overhead for the run: once the case is
+    // home the sky is released — the band breaks up and the city dries out.
+    game.weather.lock = false;
+    game.weather.storm = 0;
+    game.weather.rain = 0.4;
+    game.weather.flash = 0;
+    game.weather.doubleStrike = false;
+    game.weather.nextChange = 40 + game.rng() * 40;
+  }
   if (def.id === 'hot' && !m.sportUnlocked) {
     m.sportUnlocked = true;
     const sport = makeSportCar(game.rng, HIDEOUT.x + 80, HIDEOUT.y);

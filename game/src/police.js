@@ -229,7 +229,9 @@ export function updatePolice(game, dt, events) {
 
   // Police cars chase through the street grid, aiming at where the player is heading.
   // A roadblock car holds its line until the player is close, then it joins the chase.
-  // A car stuck against a building backs up.
+  // A car stuck against a building backs up. In a thunderstorm the wet roads cost
+  // them pace — pursuit cars hold 85% of their speed while the storm is overhead
+  // (`storm` is the same flag the helicopter check above reads).
   for (const car of police.cars) {
     const d = distance(car.x, car.y, player.x, player.y);
     // Ramming the player's car hurts the player and slows them; a nudge on foot hurts more.
@@ -247,6 +249,10 @@ export function updatePolice(game, dt, events) {
       if (d > 165) continue; // hold the line, lights flashing
       car.roadblock = false; // the player is here: chase
     }
+    // Wet roads in a thunderstorm: a chasing cruiser holds 85% of its pace, and takes
+    // it back the moment the storm passes. Roadblock cars keep their posted speed —
+    // they are parked until they join the chase.
+    if (!car.roadblock) car.speedTarget = COP.carSpeed * (storm ? COP.stormSlow : 1);
     const target = gridTarget(car, aimPoint(game));
     const want = Math.atan2(target.y - car.y, target.x - car.x);
     const steer = clamp(angleDelta(car.angle, want), -1, 1);
@@ -292,7 +298,7 @@ export function updatePolice(game, dt, events) {
       cop.y += Math.sin(cop.angle) * cop.speed * dt;
       continue;
     }
-    const pace = d > 320 ? cop.speed * 1.3 : cop.speed;
+    const pace = (d > 320 ? cop.speed * 1.3 : cop.speed) * (storm ? 0.9 : 1); // wet shoes, too
     const want = Math.atan2(player.y - cop.y, player.x - cop.x);
     cop.angle += clamp(angleDelta(cop.angle, want), -3 * dt, 3 * dt);
     // Close enough to hold the player: stand and hold on instead of running through them.

@@ -13,8 +13,8 @@
 // engine smokes), and the light street props — crates, bins, dock barrels — split open
 // when a fast car ploughs through them and leave their wreckage on the ground.
 import { AIR_LOOP_LENGTH, BEACH_EAST, BEACH_WATER_Y, TRAIN_LOOP_LENGTH, TRAIN_STATIONS, airportPointAt, createCity, hitsBuilding, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
-import { CAR, CITY_POPULATION, PLANE, PLAYER, SAVE_KEY, STEP, TRAIN, WORLD } from './config.js';
-import { createRandom, distance, pick, smoothstep } from './random.js';
+import { CAR, CITY_POPULATION, PLANE, PLAYER, SAVE_KEY, STEP, STORM, TRAIN, WORLD } from './config.js';
+import { createRandom, clamp, distance, pick, smootherstep, smoothstep } from './random.js';
 import {
   cashBurst,
   debrisBurst,
@@ -26,6 +26,7 @@ import {
   makeParticle,
   muzzleFlash,
   planeTrail,
+  rainSplash,
   sparks,
   tyreSmoke,
   updateBullet,
@@ -91,6 +92,7 @@ export function createGame(seed, saved) {
     stealCooldown: 0,
     pedCooldown: 0,
     hornCd: 0,
+    lights: true, // headlights: on by default, L toggles them after dark
     lastHurt: -99,
   };
   const game = {
@@ -109,8 +111,9 @@ export function createGame(seed, saved) {
     train: { s: 300, speed: TRAIN.speed, dwell: 0, lastStop: -1 },
     // The airfield plane: `s` is its arc length along the circuit, `speed` its pace,
     // `alt` its altitude — 0 with the wheels on the runway, 1 at cruise. It starts
-    // mid-runway, already rolling for takeoff.
-    plane: { s: 0, speed: 90, alt: 0 },
+    // mid-runway, already rolling for takeoff. `onGround` is what the audio and the
+    // renderer read: a taxiing plane hums quieter and throws no landing-light cone.
+    plane: { s: 0, speed: 90, alt: 0, onGround: true },
     police: createPolice(),
     missions: createMissions(),
     cash: 0,
@@ -119,7 +122,9 @@ export function createGame(seed, saved) {
     // The weather: rain 0..1, and storm 0/1 — a storm band is heavy rain with
     // lightning. `flash` is the lightning's brightness, decaying fast with one
     // flicker back; `boltX`/`boltY` is where the last bolt struck, near the player.
-    weather: { rain: 0, nextChange: 75, lock: false, storm: 0, flash: 0, flicker: false, nextBolt: 8, boltX: 0, boltY: 0, boltSeed: 0 },
+    // `gust` is the wind inside the band, a slow random walk that thickens the rain;
+    // `doubleStrike` is set when a bolt is due a second, weaker answer.
+    weather: { rain: 0, nextChange: 75, lock: false, storm: 0, flash: 0, flicker: false, nextBolt: 8, boltX: 0, boltY: 0, boltSeed: 0, gust: 0, doubleStrike: false },
     shake: 0, // camera kick from the last hard impact, in world units, decaying
     dialogue: null,
     objectiveText: '',
@@ -305,16 +310,18 @@ function updatePlane(game, dt) {
   p.speed += Math.max(-rate * dt, Math.min(rate * dt, target - p.speed));
   p.s = (p.s + p.speed * dt) % LEN;
   // Altitude: 0 on the ground until the wheels leave the strip, an S-curve up to
-  // cruise, 1 around the circuit, and an S-curve back down on the approach — touching
-  // down exactly as the loop wraps back onto the runway.
+  // cruise, 1 around the circuit, and a softer flare back down on the approach —
+  // smootherstep, so the last of the descent settles onto the strip instead of
+  // dropping — touching down exactly as the loop wraps back onto the runway.
   const climb = smoothstep(PLANE.liftAt, PLANE.climbEnd, p.s);
-  const descend = 1 - smoothstep(LEN - PLANE.descendAt, LEN, p.s);
+  const descend = 1 - smootherstep(LEN - PLANE.descendAt, LEN, p.s);
   p.alt = Math.min(climb, descend);
+  p.onGround = p.alt <= 0.02;
   // A climbing plane leaves a thin white trail off its tail, so the eye follows the
-  // circuit it is flying.
-  if (p.alt > 0.5 && game.rng() < dt * 8) {
+  // circuit it is flying; high on the climb the trail doubles, a thicker plume.
+  if (p.alt > 0.5 && game.rng() < dt * PLANE.trailRate) {
     const tail = airportPointAt(p.s - 34);
-    planeTrail(game, tail.x, tail.y - p.alt * PLANE.altDraw);
+    planeTrail(game, tail.x, tail.y - p.alt * PLANE.altDraw, p.alt > 0.7);
   }
 }
 
@@ -343,6 +350,7 @@ export function stepGame(game, input, dt) {
         w.rain = 0;
         w.storm = 0;
         w.flash = 0;
+        w.doubleStrike = false;
       } else {
         const stormy = game.rng() < 0.45; // nearly half the rain bands come with thunder
         w.storm = stormy ? 1 : 0;
@@ -353,25 +361,44 @@ export function stepGame(game, input, dt) {
   }
   // Lightning: during a storm a bolt strikes every few seconds, near the player, and
   // the thunder event carries the sound. The flash decays fast, with one flicker back
-  // as the bolt branches — the renderer reads game.weather.flash every frame.
+  // as the bolt branches — the renderer reads game.weather.flash every frame. A gust
+  // walks inside the band while it lasts, thickening and thinning the rain. And about
+  // a third of the strikes answer themselves: once the first flash has died, a second,
+  // weaker bolt lands nearby with its own thunder.
   if (w.storm > 0 && !w.lock) {
     w.nextBolt -= dt;
     if (w.nextBolt <= 0) {
       w.nextBolt = 3.5 + game.rng() * 5.5;
       w.flash = 1;
       w.flicker = true;
+      w.doubleStrike = game.rng() < STORM.doubleStrike;
       w.boltX = player.x + (game.rng() - 0.5) * 900;
       w.boltY = player.y + (game.rng() - 0.5) * 500 - 120;
       w.boltSeed = game.rng() * 1000;
       events.push({ type: 'thunder' });
     }
   }
+  if (w.rain > 0) {
+    // A slow random walk, clamped: the gust never stills the rain and never doubles it.
+    w.gust = clamp(w.gust + (game.rng() - 0.5) * dt * 0.9, 0, STORM.gustMax);
+  } else {
+    w.gust = 0;
+  }
   if (w.flash > 0) {
-    w.flash = Math.max(0, w.flash - dt * 2.4);
+    w.flash = Math.max(0, w.flash - dt * STORM.flashDecay);
     if (w.flicker && w.flash < 0.6) {
       w.flash = 0.85; // the bolt branches: one bright flicker back before it dies
       w.flicker = false;
     }
+  } else if (w.doubleStrike && w.storm > 0) {
+    // The echo strike: weaker, a little further off, with its own thunder.
+    w.doubleStrike = false;
+    w.flash = 0.7;
+    w.flicker = false;
+    w.boltX = player.x + (game.rng() - 0.5) * 1100;
+    w.boltY = player.y + (game.rng() - 0.5) * 600 - 120;
+    w.boltSeed = game.rng() * 1000;
+    events.push({ type: 'thunder' });
   }
   player.punchCooldown = Math.max(0, player.punchCooldown - dt);
   player.shootCooldown = Math.max(0, player.shootCooldown - dt);
@@ -636,9 +663,11 @@ export function stepGame(game, input, dt) {
   }
   // Rain: fast streaks slanting down around the player, gone in half a second. The
   // renderer draws kind 'rain' as a line, not a dot, and the wet streets do the rest.
-  // A thunderstorm throws its rain down harder than a plain shower does.
+  // A thunderstorm throws its rain down harder than a plain shower does, and a gust
+  // inside the band thickens the fall further — and where the heavy rain lands, it
+  // throws up brief pale splash rings on the asphalt.
   if (game.weather.rain > 0) {
-    const drops = Math.round(game.weather.rain * (game.weather.storm > 0 ? 5 : 3));
+    const drops = Math.round(game.weather.rain * (game.weather.storm > 0 ? 5 : 3) * (1 + game.weather.gust));
     for (let i = 0; i < drops; i += 1) {
       const drop = makeParticle(
         player.x + (game.rng() - 0.5) * 1250,
@@ -651,6 +680,9 @@ export function stepGame(game, input, dt) {
       );
       drop.kind = 'rain';
       game.particles.push(drop);
+    }
+    if (game.weather.storm > 0 && game.rng() < dt * 6) {
+      rainSplash(game, player.x + (game.rng() - 0.5) * 1100, player.y + (game.rng() - 0.5) * 650);
     }
   }
 

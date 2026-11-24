@@ -14,7 +14,7 @@
 // plane lift off the runway at golden hour, the hangar and the north road below it.
 import { STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
-import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_LIGHTS, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_BUSTED, SCREEN_DONE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED } from './render.js';
 import { HIDEOUT, createMissions } from './missions.js';
@@ -121,6 +121,12 @@ function runGame() {
       audio.setMuted(!audio.muted);
       announce(audio.muted ? 'Sound off.' : 'Sound on.');
     }
+    if (actions & ACTION_LIGHTS) {
+      // Headlights: a toggle for the dark — off, the player's own cone goes dark
+      // while the city's lamps and the traffic's lights stay lit.
+      game.player.lights = !game.player.lights;
+      announce(game.player.lights ? 'Headlights on.' : 'Headlights off.');
+    }
     if (screen === SCREEN_TITLE) {
       if (actions & ACTION_NEW) startGame(true);
       else if (actions & ACTION_CONFIRM) {
@@ -185,7 +191,9 @@ function runGame() {
           audio.engine(0);
         }
         audio.siren(game.police.sirenOn);
-        audio.rain(game.weather.rain);
+        // The rain wash follows the weather — and the gusts inside a storm band, so
+        // the hiss swells and thins the way the fall does.
+        audio.rain(game.weather.rain * (1 + game.weather.gust * 0.4));
         audio.heli(!!game.police.heli); // the rotor wash follows the five-star bird
         // The elevated train follows the player too: its rumble swells as the consist
         // bears down on his street and falls away as it rounds the loop.

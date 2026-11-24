@@ -64,6 +64,14 @@ export function smoothstep(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 }
 
+/** The smootherstep curve: like smoothstep, but with zero slope at both ends, so the
+ * ease is softer still. The airfield plane flares onto the runway on it — the last of
+ * the descent settles instead of dropping — and nothing in the game snaps. */
+export function smootherstep(edge0, edge1, x) {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
 /** Shortest signed turn from angle `from` to angle `to`, in radians. */
 export function angleDelta(from, to) {
   let d = (to - from) % (Math.PI * 2);

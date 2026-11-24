@@ -53,6 +53,12 @@ export const AIRPORT_HANGAR = { x: 1560, y: 6, w: 140, h: 38 };
 export const AIRPORT_MEET = { x: 1630, y: 104 }; // the pilot waits on the grass by the hangar
 export const AIRPORT_CAR = { x: 1780, y: 166, angle: 0 }; // the marked car, kerbside on the north road
 export const AIRSTRIP = { x: 1900, y: 67 }; // the middle of the runway, where the case waits
+// The airfield's dressing, fixed like the strip itself: a windsock on a pole east of the
+// hangar that leans with the storm gusts, a taxiway joining the runway to the hangar
+// door, and fuel drums stacked by the hangar's west wall.
+export const AIRPORT_WINDSOCK = { x: 1740, y: 20 };
+export const AIRPORT_TAXIWAY = { x: 1610, y: 44, w: 40, h: 24 };
+export const AIRPORT_DRUMS = [{ x: 1548, y: 22 }, { x: 1548, y: 32 }, { x: 1558, y: 27 }];
 // The skyline skips the airfield's stretch of the north edge, so no tower ever stands on
 // the runway: the strip the towers leave clear, in world x.
 export const AIRPORT_SKYLINE_GAP = { x0: 1440, x1: 2320 };
@@ -300,8 +306,9 @@ export function createCity(random) {
   }
   const rail = { pillars: railPillars, stations: TRAIN_STATIONS };
   // The airfield: its runway, its hangar and the gap it cuts in the skyline are fixed
-  // geometry too, so the strip is in the same place in every city.
-  const airport = { runway: AIRPORT_RUNWAY, hangar: AIRPORT_HANGAR };
+  // geometry too, so the strip is in the same place in every city — windsock, taxiway
+  // and fuel drums included.
+  const airport = { runway: AIRPORT_RUNWAY, hangar: AIRPORT_HANGAR, windsock: AIRPORT_WINDSOCK, taxiway: AIRPORT_TAXIWAY, drums: AIRPORT_DRUMS };
   // The hangar stands on the strip north of the runway, solid like any building, with
   // its own sign over the door: it is where the story's pilot waits out the storm.
   buildings.push({

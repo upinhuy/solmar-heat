@@ -448,8 +448,9 @@ export function debrisBurst(game, x, y, colors, n) {
 }
 
 /** The airfield plane's trail: a thin white puff off the tail while it climbs, gone in
- * under a second — just enough to draw the eye along the circuit it is flying. */
-export function planeTrail(game, x, y) {
+ * under a second — just enough to draw the eye along the circuit it is flying. High
+ * on the climb the trail doubles, a thicker plume off the tail. */
+export function planeTrail(game, x, y, dense) {
   game.particles.push(makeParticle(
     x + range(game.rng, -6, 6),
     y + range(game.rng, -6, 6),
@@ -459,4 +460,23 @@ export function planeTrail(game, x, y) {
     '#eef2f6',
     3,
   ));
+  if (dense) {
+    game.particles.push(makeParticle(
+      x + range(game.rng, -8, 8),
+      y + range(game.rng, -8, 8),
+      range(game.rng, -8, 8),
+      range(game.rng, -8, 8),
+      1.1,
+      '#eef2f6',
+      4,
+    ));
+  }
+}
+
+/** A rain splash where heavy storm rain hits the street: a pale ring that spreads and
+ * fades in a third of a second. The renderer draws kind 'splash' as a ring, not a dot. */
+export function rainSplash(game, x, y) {
+  const ring = makeParticle(x, y, 0, 0, 0.32, '#c8d6e2', 3);
+  ring.kind = 'splash';
+  game.particles.push(ring);
 }

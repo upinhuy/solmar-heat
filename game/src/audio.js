@@ -25,6 +25,7 @@ export function createAudio() {
   let planeSource = null;
   let planeGain = null;
   let planeLfo = null;
+  let planeFilter = null; // the drone's bandpass: its pitch follows the plane's approach
   let lastThunder = 0;
   let muted = false;
 
@@ -143,7 +144,9 @@ export function createAudio() {
      * speed so the putter of the engine sits under the chase, whose loudness follows
      * how close the aircraft is (0 = the far side of its circuit, silent). Call every
      * frame; it swells as the plane lifts off over the north road and falls away as
-     * it circles the far blocks. */
+     * it circles the far blocks. The drone's pitch rides with it too — the bandpass
+     * climbs as the plane bears down on the player, the way an approaching engine
+     * does, and falls away as it leaves. */
     plane(closeness) {
       if (closeness <= 0) {
         if (planeGain) planeGain.gain.setTargetAtTime(0, context.currentTime, 0.3);
@@ -158,6 +161,7 @@ export function createAudio() {
         filter.type = 'bandpass';
         filter.frequency.value = 320;
         filter.Q.value = 0.8;
+        planeFilter = filter;
         const chop = context.createGain();
         chop.gain.value = 0.6;
         planeLfo = context.createOscillator();
@@ -177,6 +181,8 @@ export function createAudio() {
         planeLfo.start();
       }
       planeGain.gain.setTargetAtTime(0.012 + closeness * 0.035, context.currentTime, 0.4);
+      // The approaching engine climbs in pitch; the departing one falls away.
+      if (planeFilter) planeFilter.frequency.setTargetAtTime(280 + closeness * 420, context.currentTime, 0.4);
     },
     /** Cash earned: two bright chimes. */
     cash() {
@@ -240,11 +246,13 @@ export function createAudio() {
     },
     /** A lightning strike's thunder: a sharp crack as the bolt lands, then a long low
      * rumble that rolls away, with a second fainter roll after it — the sound the
-     * screen flash is the picture of. Call once per strike, from the thunder event. */
+     * screen flash is the picture of. A double strike answers itself a third time,
+     * quieter still, almost a second later. Call once per strike, from the thunder event. */
     thunder() {
       noiseBurst(0.18, 2400, 0.5);
       noiseBurst(2.2, 120, 0.4);
       setTimeout(() => noiseBurst(1.2, 90, 0.2), 350);
+      setTimeout(() => noiseBurst(0.9, 70, 0.12), 950);
     },
     /** The engine hum: a sawtooth whose pitch and loudness follow speed. Call every frame. */
     engine(speedRatio) {

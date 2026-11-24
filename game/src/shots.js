@@ -12,8 +12,10 @@
 // north avenue at dusk under the elevated line, the three-car train ahead with its
 // windows lit. The storm scene is a three-star night chase in a thunderstorm: lightning
 // over downtown, the streets darker than a plain rainy night, the neon doubled in the
-// wet. The airport scene watches the prop plane lift off the runway at golden hour,
-// the hangar and the north road below it, from a car on the parallel street.
+// wet, gusts thickening the rain and splash rings on the asphalt, and a second strike
+// due behind the first. The airport scene watches the prop plane lift off the runway at golden hour,
+// the hangar and the north road below it, from a car on the parallel street — with a
+// fuel truck by the hangar, a staff car on the road, and the windsock leaning in a light breeze.
 import { STEP } from './config.js';
 import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
@@ -208,8 +210,12 @@ export function stageShot(name, game) {
     driveRoute(game, routeTarget(game, route), 5);
     // The bolt strikes over the player, mid-flash, so the photograph catches the fork
     // and the white wash together; the weather would let it decay before the paint.
+    // The gust is up and a second strike is due, so the frame can catch the echo bolt
+    // and the splash rings on the wet asphalt as well.
     game.weather.flash = 0.9;
     game.weather.flicker = true;
+    game.weather.gust = 0.7;
+    game.weather.doubleStrike = true;
     game.weather.boltX = game.player.x + 160;
     game.weather.boltY = game.player.y - 180;
     game.weather.boltSeed = 42;
@@ -245,10 +251,17 @@ export function stageShot(name, game) {
     game.player.x = car.x;
     game.player.y = car.y;
     game.player.health = 400; // a staged scene: the wait lasts the photograph
+    // Airfield dressing for the frame: a fuel truck by the hangar and a staff car on
+    // the north road, and a light breeze so the windsock leans instead of hanging.
+    game.weather.gust = 0.25;
+    for (const [vx, vy, va] of [[1700, 130, Math.PI / 2], [2050, 166, Math.PI]]) {
+      const extra = makeCar(game.rng, { x: vx, y: vy, angle: va, kind: 'mission', shape: 'van', color: '#c9a13b' });
+      game.cars.push(extra);
+    }
     // The plane mid-takeoff: past the climb point, most of the way up, a third of the
     // way down the runway's eastbound leg — the frame catches it with the hangar and
     // the runway lights still in view.
-    game.plane = { s: 520, speed: 200, alt: 0.87 };
+    game.plane = { s: 520, speed: 200, alt: 0.87, onGround: false };
     game.dialogue = null;
     return { screen: SCREEN_PLAY };
   }

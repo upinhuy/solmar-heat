@@ -20,7 +20,8 @@
 // brings an extra car and a faster response, at four stars the
 // PD parks roadblocks across the road, and at five stars a police helicopter hangs over
 // the chase with its searchlight on you — unless a thunderstorm has rolled in, when the
-// helicopter stays grounded. The traffic, meanwhile, obeys the city's
+// helicopter stays grounded and the pursuit cars hold back to 85% of their pace on the
+// wet roads. The traffic, meanwhile, obeys the city's
 // working traffic signals — and queues at the red ones with its brake lights lit.
 // Over the middle avenues runs the city's elevated loop line: a concrete viaduct on
 // pillars carrying a three-car train in a teal-and-cream livery that circles downtown
@@ -40,14 +41,19 @@
 // along the south-west shore — a wide sand beach with umbrellas, loungers, kiosks, a
 // volleyball net and lifeguard towers under its own pier, and a row of pastel resort
 // blocks with turquoise pools behind the coast road — a small airfield on the north edge,
-// a runway with painted markings and amber edge lights, a hangar, and a prop plane that
-// taxis, takes off, circles and lands again forever — and a marina district along the
+// a runway with painted markings and amber edge lights, a taxiway, fuel drums, a windsock
+// that leans with the storm gusts, white approach strobes sequencing toward the threshold
+// after dark, a hangar, and a prop plane that
+// taxis, takes off, circles and lands again forever — flaring onto the strip instead of
+// dropping, its landing light burning longer and brighter while it is low — and a marina district along the
 // south shore with a boardwalk, a pier, bobbing boats and animated
 // water — all under a day/night sky with lamp glow and neon spill after dark, lamplight
 // smearing across wet asphalt, thunder under the heavier storms, lightning that forks
 // across the sky and flashes over the whole city while the streets darken and the neon
-// burns twice as bright in the wet, and rain
-// that slicks the streets and doubles the neon. Put your
+// burns twice as bright in the wet — about a third of the strikes answering themselves
+// with a second, weaker bolt, the wind gusting inside a storm band and throwing pale
+// splash rings on the asphalt — and rain
+// that slicks the streets and doubles the neon. Headlights answer the L key. Put your
 // 3 or 4 PNG or JPEG screenshots in screenshots/ (the first by name is the cover) and run it.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.

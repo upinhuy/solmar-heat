@@ -67,6 +67,15 @@ export const PLANE = {
   climbEnd: 560, // arc length where the climb levels off at cruise altitude
   descendAt: 420, // arc length before the loop's end where the descent begins
   altDraw: 46, // how far up the screen the plane is drawn per unit of altitude
+  trailRate: 8, // white puffs per second off the tail while it climbs
+};
+
+// A thunderstorm's own numbers: how often a bolt answers itself with a second
+// strike, how hard the wind gusts inside a storm band, and how fast the flash dies.
+export const STORM = {
+  doubleStrike: 0.35, // chance a bolt is followed by a second, weaker strike
+  gustMax: 0.6, // gusts add up to 60% more rain while a storm is overhead
+  flashDecay: 2.4, // lightning brightness lost per second after the strike
 };
 
 export const CAR = {
@@ -97,6 +106,7 @@ export const COP = {
   aimLead: 0.42, // seconds of player travel the chase cars aim ahead by
   heliSpeed: 660, // the five-star helicopter: faster than any car in the city, or it is no threat
   heliLead: 0.35, // seconds of player travel the helicopter aims ahead by
+  stormSlow: 0.85, // wet roads in a thunderstorm: pursuit cars hold 85% of their pace
 };
 
 export const COLORS = {
@@ -182,8 +192,15 @@ export const COLORS = {
   planeBody: '#e8e8e8',
   planeStripe: '#2f6fd0',
   planeTail: '#b8443a',
-  // A lightning bolt: cold white-blue, the colour the whole screen flashes.
+  // A lightning bolt: cold white-blue, the colour the whole screen flashes; its
+  // second fork is fainter, and a struck street throws up pale splash rings.
   bolt: '#dfe9ff',
+  boltBranch: '#b9c8f5',
+  splash: '#c8d6e2',
+  // The airfield's extras: the white approach strobes sequencing down the strip, and
+  // the windsock by the hangar, orange against the grass.
+  runwayStrobe: '#ffffff',
+  windsock: '#e8632c',
 };
 
 // Neon signboards on the commercial buildings: names and tube colours, assigned per

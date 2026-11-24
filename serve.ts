@@ -77,8 +77,8 @@ createServer((request, response) => {
   if (pathname.endsWith('/')) pathname += 'index.html';
   if (pathname === '/__version') {
     // A one-line health check for scripts and curious players: which game this server
-    // serves, and which screenshot scenes it can stage, without downloading any of it.
-    const body = JSON.stringify({ game: 'Solmar Heat', files: 'game/', shots: SHOTS, ok: true });
+    // serves, which version of it, and which screenshot scenes it can stage, without downloading any of it.
+    const body = JSON.stringify({ game: 'Solmar Heat', version: 'v8', files: 'game/', shots: SHOTS, ok: true });
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
     response.end(request.method === 'HEAD' ? undefined : body);
     return;

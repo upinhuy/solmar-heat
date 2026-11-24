@@ -1,5 +1,5 @@
 // Keyboard and pointer input. Held keys give movement and driving; one-shot presses
-// (start, pause, enter a car, mute, restart) are queued as bit flags and taken once by
+// (start, pause, enter a car, mute, restart, headlights) are queued as bit flags and taken once by
 // the loop, so a press between two frames is never lost and never counted twice. The
 // canvas also swallows the right-click menu, so a stray click while aiming never
 // interrupts a fight, and the movement keys keep their default page behaviour
@@ -13,6 +13,7 @@ export const ACTION_NEW = 16;
 export const ACTION_PUNCH = 32;
 export const ACTION_RESTART = 64;
 export const ACTION_HORN = 128;
+export const ACTION_LIGHTS = 256; // L: toggle the headlights after dark
 
 const CONFIRM = new Set(['Enter', 'Space']);
 const PAUSE = new Set(['KeyP', 'Escape']);
@@ -22,6 +23,7 @@ const NEW = new Set(['KeyN']);
 const PUNCH = new Set(['KeyF']);
 const RESTART = new Set(['KeyR']);
 const HORN = new Set(['KeyH']);
+const LIGHTS = new Set(['KeyL']);
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -52,6 +54,8 @@ export function createInput(canvas) {
       if (!event.repeat) actions |= ACTION_RESTART;
     } else if (HORN.has(event.code)) {
       actions |= ACTION_HORN; // held or tapped, the horn may sound again at once
+    } else if (LIGHTS.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_LIGHTS; // one toggle per press, never a strobe
     }
     keys.add(event.code);
   }
