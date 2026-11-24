@@ -232,6 +232,13 @@ export function createAudio() {
       tone(370, 0.16, 'square', 0.12);
       tone(466, 0.16, 'square', 0.1);
     },
+    /** A boat horn from the marina: two long low notes, a fifth apart, the sound
+     * that rolls off the water when a boat leaves its mooring — called when Rico
+     * is down by the shore, never inland. */
+    boat() {
+      tone(196, 0.9, 'sine', 0.22, 90);
+      setTimeout(() => tone(147, 1.1, 'sine', 0.2, 80), 450);
+    },
     /** Rain on the streets: a looping wash of filtered noise whose loudness follows the
      * weather's intensity (0 = dry). Call every frame with game.weather.rain. */
     rain(intensity) {

@@ -1,5 +1,5 @@
 // Keyboard and pointer input. Held keys give movement and driving; one-shot presses
-// (start, pause, enter a car, mute, restart, headlights) are queued as bit flags and taken once by
+// (start, pause, enter a car, mute, restart, headlights, photo mode) are queued as bit flags and taken once by
 // the loop, so a press between two frames is never lost and never counted twice. The
 // canvas also swallows the right-click menu, so a stray click while aiming never
 // interrupts a fight, and the movement keys keep their default page behaviour
@@ -14,6 +14,7 @@ export const ACTION_PUNCH = 32;
 export const ACTION_RESTART = 64;
 export const ACTION_HORN = 128;
 export const ACTION_LIGHTS = 256; // L: toggle the headlights after dark
+export const ACTION_PHOTO = 512; // C: photo mode — hide the HUD and minimap for a clean frame
 
 const CONFIRM = new Set(['Enter', 'Space']);
 const PAUSE = new Set(['KeyP', 'Escape']);
@@ -24,6 +25,7 @@ const PUNCH = new Set(['KeyF']);
 const RESTART = new Set(['KeyR']);
 const HORN = new Set(['KeyH', 'KeyB', 'KeyJ']); // H, B or J for a hand already on WASD
 const LIGHTS = new Set(['KeyL']);
+const PHOTO = new Set(['KeyC']);
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -56,6 +58,8 @@ export function createInput(canvas) {
       actions |= ACTION_HORN; // held or tapped, the horn may sound again at once
     } else if (LIGHTS.has(event.code)) {
       if (!event.repeat) actions |= ACTION_LIGHTS; // one toggle per press, never a strobe
+    } else if (PHOTO.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_PHOTO; // one toggle per press: a clean frame, not a flicker
     }
     keys.add(event.code);
   }

@@ -704,6 +704,24 @@ export function createRenderer(canvas) {
       context.fillRect(cam.x + PIER.x - 3, cam.y + y, 5, 5);
       context.fillRect(cam.x + PIER.x + PIER.w, cam.y + y, 5, 5);
     }
+    // Festoon lights strung along the pier: warm bulbs over the boards, swaying a
+    // little with the swell — the harbour-lights job's own glow, and the reason the
+    // pier reads at night instead of vanishing into the dark. After dark each bulb
+    // wears a soft halo; by day the bulbs are just warm dots on the wire.
+    const pierDark = darkness(game.clock);
+    for (const light of city.pierLights || []) {
+      const sway = Math.sin(game.time * 0.9 + light.phase) * 1.5;
+      if (pierDark > 0.25) {
+        context.fillStyle = 'rgba(255,184,77,0.22)';
+        context.beginPath();
+        context.arc(cam.x + light.x + sway, cam.y + light.y, 8, 0, Math.PI * 2);
+        context.fill();
+      }
+      context.fillStyle = '#ffb84d';
+      context.beginPath();
+      context.arc(cam.x + light.x + sway, cam.y + light.y, 2.6, 0, Math.PI * 2);
+      context.fill();
+    }
     // Buoys bob on the swell: a red drum with a white band, and a faint ripple ring.
     for (const buoy of city.buoys || []) {
       const bob = Math.sin(game.time * 1.3 + buoy.phase) * 2;
@@ -2173,6 +2191,10 @@ export function createRenderer(canvas) {
   }
 
   function drawWorld(game, cam) {
+    // The world rectangle the camera shows: every moving thing below is skipped
+    // when it is off it — the city holds a hundred cars and pedestrians, and
+    // drawing each one's full shape off-screen every frame is pure waste.
+    const vis = visible(cam);
     drawCity(game, cam);
     // Police spike strips lie flat on the asphalt across the road ahead, drawn over
     // the road and under the cars: a dark band with steel teeth, dulled flat once
@@ -2262,10 +2284,20 @@ export function createRenderer(canvas) {
       drawStartIcon(game, cam, RACE_START, COLORS.race, 'RACE');
       drawStartIcon(game, cam, COURIER_DEPOT, COLORS.courier, 'COURIER');
     }
-    for (const car of game.cars) drawCarShape(car, cam, dark);
-    for (const car of game.police.cars) drawCarShape(car, cam, dark);
-    for (const ped of game.peds) drawPed(ped, cam);
+    for (const car of game.cars) {
+      if (car.x < vis.x0 - 60 || car.x > vis.x1 + 60 || car.y < vis.y0 - 60 || car.y > vis.y1 + 60) continue;
+      drawCarShape(car, cam, dark);
+    }
+    for (const car of game.police.cars) {
+      if (car.x < vis.x0 - 60 || car.x > vis.x1 + 60 || car.y < vis.y0 - 60 || car.y > vis.y1 + 60) continue;
+      drawCarShape(car, cam, dark);
+    }
+    for (const ped of game.peds) {
+      if (ped.x < vis.x0 - 30 || ped.x > vis.x1 + 30 || ped.y < vis.y0 - 30 || ped.y > vis.y1 + 30) continue;
+      drawPed(ped, cam);
+    }
     for (const cop of game.police.cops) {
+      if (cop.x < vis.x0 - 30 || cop.x > vis.x1 + 30 || cop.y < vis.y0 - 30 || cop.y > vis.y1 + 30) continue;
       // Foot cops read as pedestrians in police blue, with a cap.
       drawPed({ x: cop.x, y: cop.y, angle: cop.angle, shirt: '#2f6fd0', hair: '#141c26', walkPhase: game.time * 9, down: 0 }, cam);
       context.fillStyle = '#1c2733';
@@ -2275,6 +2307,7 @@ export function createRenderer(canvas) {
     }
     // Bullets: the player's are pale gold, a rival's are hot pink.
     for (const b of game.bullets) {
+      if (b.x < vis.x0 || b.x > vis.x1 || b.y < vis.y0 || b.y > vis.y1) continue;
       context.fillStyle = b.hostile ? '#ff7ab0' : '#ffe9a8';
       context.beginPath();
       context.arc(cam.x + b.x, cam.y + b.y, 3, 0, Math.PI * 2);
@@ -2283,6 +2316,7 @@ export function createRenderer(canvas) {
     // Particles. Rain falls as slanted streaks, a muzzle flash as a spiked glare, and
     // everything else — smoke, sparks, spray, casings — as a soft dot.
     for (const p of game.particles) {
+      if (p.x < vis.x0 || p.x > vis.x1 || p.y < vis.y0 || p.y > vis.y1) continue;
       context.globalAlpha = Math.max(0, p.life / p.maxLife);
       if (p.kind === 'rain') {
         context.strokeStyle = p.color;
@@ -2819,15 +2853,15 @@ export function createRenderer(canvas) {
       const save = info && info.save;
       const lines = [
         'Solmar is open. Steal cars, dodge the law, run jobs for Mara Solis.',
-        'Twenty-two story missions, a night market district with ten stalls, paper lanterns and a band that plays in sets, police spike strips at four stars with warning chevrons and two kerbside repair bays, an elevated railway circling downtown, a five-star helicopter, and a prop plane over the airfield.',
-        'WASD move and drive · Mouse aim · Click to shoot · E car · P pause',
+        'Twenty-four story missions, a night market district with ten stalls, paper lanterns and a band that plays in sets, police spike strips at four stars with warning chevrons and two kerbside repair bays, an elevated railway circling downtown, a five-star helicopter, a prop plane over the airfield, and a new job at Estacion Sur and a shootout on the marina pier under the festoon lights.',
+        'WASD move and drive · Mouse aim · Click to shoot · E car · P pause · C photo mode',
         save ? `Saved game: $${save.cash.toLocaleString('en-US')} — mission ${Math.min(save.missionIndex + 1, MISSIONS.length)} of ${MISSIONS.length}` : 'A new story in the city of Solmar',
         '',
       ];
       drawPanel('SOLMAR HEAT', lines, save ? 'Enter — continue · N — new game' : 'Press Enter or click to start', '#f2c230');
       return;
     }
-    drawHud(game);
+    if (!game.photoMode) drawHud(game);
     if (screen === SCREEN_PAUSED) {
       const stats = game.missions.stats;
       drawPanel('Paused', [
@@ -2842,7 +2876,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_DONE) {
       const stats = game.missions.stats;
       drawPanel('SOLMAR IS YOURS', [
-        'All twenty-two jobs done. Rico Vega owns this city now.',
+        'All twenty-four jobs done. Rico Vega owns this city now.',
         `Final cash: $${game.cash.toLocaleString('en-US')} · Races won: ${stats.races} · Deliveries: ${stats.deliveries}`,
       ], 'Press Enter to keep roaming free', '#7fd069');
     }

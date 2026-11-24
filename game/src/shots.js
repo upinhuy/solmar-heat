@@ -1,4 +1,4 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train|storm|airport|market|spikes.
+// The screenshot scenes behind ?shot=start|drive|chase|mission|showdown|skyline|rain|port|heli|beach|train|storm|airport|market|spikes|harbour.
 // Each one plays the real rules forward from a fresh seeded game for a fixed number of
 // steps, steered by a simple autopilot that drives toward waypoints, so the frame is what
 // a short game really looks like and the same seed always gives the same frame. Each scene
@@ -25,7 +25,7 @@ import { angleDelta, distance } from './random.js';
 import { startRun, stepGame } from './state.js';
 import { HIDEOUT, missionMarker, startMission } from './missions.js';
 import { setWanted } from './police.js';
-import { MARINA, gridTarget, nearestRoadPoint, randomRoadPoint } from './world.js';
+import { MARINA, HARBOUR_MEET, gridTarget, nearestRoadPoint, randomRoadPoint } from './world.js';
 import { makeCar, makePed } from './vehicles.js';
 import { SCREEN_PLAY, SCREEN_TITLE } from './render.js';
 
@@ -124,7 +124,7 @@ function walkToward(game, target, seconds) {
 
 /**
  * Set `game` to the named scene (start, drive, chase, mission, showdown, skyline, rain,
- * port, heli, beach, train, storm, airport, market or spikes; any other name is start) and return the screen to draw over it.
+ * port, heli, beach, train, storm, airport, market, spikes or harbour; any other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, game) {
   if (name === 'skyline') {
@@ -273,6 +273,10 @@ export function stageShot(name, game) {
     game.clock = 20 * 60 + 30; // 20:30 — the market at its liveliest, lanterns lit
     startRun(game);
     noActivities(game);
+    // Mid-set: the band is playing and the crowd has gathered at the stage for the
+    // photograph — the plaza at its fullest, not between songs.
+    game.bandSet = true;
+    game.bandTimer = 20;
     // Rico walks into the plaza from the south, toward the stage — the ten stalls
     // and the paper lanterns around him, the crowd thick after dark and gathered
     // for the band's set, the string lights sagging overhead.
@@ -352,6 +356,39 @@ export function stageShot(name, game) {
       cop.siren = 1;
     }
     game.dialogue = null;
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'harbour') {
+    game.clock = 18 * 60 + 40; // dusk: the festoon lights over the pier are lit
+    game.missions.index = 22;
+    startMission(game, 22); // Harbour Lights: the case waits on the pier
+    noActivities(game);
+    // Rico walks out onto the pier from the boardwalk; the trap springs and the
+    // crew steps out of the boards. He then falls back to the pier's foot to trade
+    // shots at range — far enough from the cash case that the photograph cannot
+    // accidentally finish the mission.
+    game.player.x = HARBOUR_MEET.x - 190;
+    game.player.y = HARBOUR_MEET.y - 40;
+    game.player.health = 500; // a staged scene: he stands his ground for the photograph
+    walkToward(game, HARBOUR_MEET, 4);
+    walkToward(game, { x: HARBOUR_MEET.x - 150, y: HARBOUR_MEET.y - 30 }, 3);
+    // Two and a half seconds of the firefight: Rico aims at a standing rival and shoots.
+    const steps = Math.floor(2.5 / STEP);
+    for (let i = 0; i < steps; i += 1) {
+      const standing = game.missions.hostiles.filter((h) => h.down <= 0);
+      const foe = standing[0];
+      const aim = foe ? Math.atan2(foe.y - game.player.y, foe.x - game.player.x) : 0;
+      stepGame(game, {
+        move: { x: 0, y: 0 },
+        sprint: false,
+        handbrake: false,
+        aim,
+        shoot: i % 18 === 0,
+        punch: false,
+        enter: false,
+      }, STEP);
+      if (game.player.health <= 0) break;
+    }
     return { screen: SCREEN_PLAY };
   }
   if (name === 'rain') {

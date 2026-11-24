@@ -3,7 +3,7 @@
 // game moves between six screens: title, play, paused, wasted, busted and story done.
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission|showdown|skyline|
-// rain|port|heli|beach|train|storm|airport|market|spikes (with &seed=N) stages that scene instead of running the loop, paints it
+// rain|port|heli|beach|train|storm|airport|market|spikes|harbour (with &seed=N) stages that scene instead of running the loop, paints it
 // twice and sets window.__shotReady for a screenshot. The heli scene is the five-star
 // night chase: roadblocks on the ground, the police helicopter's searchlight overhead.
 // The beach scene is the golden-hour cruise along the coast road, the resort district
@@ -14,10 +14,12 @@
 // plane lift off the runway at golden hour, the hangar and the north road below it.
 // The market scene walks Rico through the night market at 20:30, lanterns lit and the
 // band on the stage. The spikes scene is a four-star night chase: a roadblock and a
-// spike strip across the road ahead, the PD's newest trick.
+// spike strip across the road ahead, the PD's newest trick. The harbour scene stages
+// the harbour-lights job at dusk: Rico on the marina pier under the festoon lights,
+// the crew stepping out of the boards as the trap springs.
 import { MARKET, STEP } from './config.js';
 import { createGame, loadSave, startRun, stepGame } from './state.js';
-import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_LIGHTS, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_LIGHTS, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, ACTION_PHOTO, ACTION_PUNCH, ACTION_RESTART, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_BUSTED, SCREEN_DONE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED } from './render.js';
 import { HIDEOUT, createMissions } from './missions.js';
@@ -61,6 +63,7 @@ function runGame() {
   // One-shot step actions (enter a car, punch) wait here until a simulation step actually
   // runs: a press taken on a frame too short for a step must not be dropped.
   let stepActions = 0;
+  let boatTimer = 20; // seconds until the next boat horn, when Rico is by the shore
 
   function announce(message) {
     status.textContent = message;
@@ -137,6 +140,12 @@ function runGame() {
       // while the city's lamps and the traffic's lights stay lit.
       game.player.lights = !game.player.lights;
       announce(game.player.lights ? 'Headlights on.' : 'Headlights off.');
+    }
+    if (actions & ACTION_PHOTO) {
+      // Photo mode: the HUD and minimap go quiet for a clean frame — the city
+      // itself is the picture. Toggle again to bring the readouts back.
+      game.photoMode = !game.photoMode;
+      announce(game.photoMode ? 'Photo mode — HUD hidden.' : 'HUD back on.');
     }
     if (screen === SCREEN_TITLE) {
       if (actions & ACTION_NEW) startGame(true);
@@ -225,6 +234,14 @@ function runGame() {
         // The sea follows the player too: silent inland, a slow wash near the shore —
         // closest along the beach, where the sand runs down to the water.
         audio.waves(Math.max(0, Math.min(1, (game.player.y - 1750) / 560)));
+        // A boat horn from the marina: when Rico is down by the shore, a boat
+        // leaves its mooring about every half minute — never inland, and never
+        // twice in quick succession.
+        boatTimer -= STEP;
+        if (boatTimer <= 0) {
+          boatTimer = 30;
+          if (game.player.y > 2050) audio.boat();
+        }
         // The night market follows the player too: its murmur swells as he reaches
         // the plaza and fades as he leaves the quarter — closest in the crowd itself.
         // While the band is playing a set the murmur carries the beat with it.

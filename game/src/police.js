@@ -274,11 +274,15 @@ export function updatePolice(game, dt, events) {
     if (car.roadblock) {
       if (d > 165) continue; // hold the line, lights flashing
       car.roadblock = false; // the player is here: chase
+      car.chaseBoost = 3; // breaking ranks, the unit rolls out fast for three seconds
     }
     // Wet roads in a thunderstorm: a chasing cruiser holds 85% of its pace, and takes
     // it back the moment the storm passes. Roadblock cars keep their posted speed —
-    // they are parked until they join the chase.
-    if (!car.roadblock) car.speedTarget = COP.carSpeed * (storm ? COP.stormSlow : 1);
+    // they are parked until they join the chase. A unit fresh off a roadblock runs
+    // 12% over its pace while its chase boost lasts, so a blown barricade still hurts.
+    if (car.chaseBoost > 0) car.chaseBoost -= dt;
+    const boost = (car.chaseBoost || 0) > 0 ? 1.12 : 1;
+    if (!car.roadblock) car.speedTarget = COP.carSpeed * (storm ? COP.stormSlow : 1) * boost;
     const target = gridTarget(car, aimPoint(game));
     const want = Math.atan2(target.y - car.y, target.x - car.x);
     const steer = clamp(angleDelta(car.angle, want), -1, 1);

@@ -15,7 +15,7 @@
 // Plus the helpers
 // the rest of the game uses to ask the city questions (is this a road? does this circle
 // hit a building? where is the nearest street?). Nothing here draws or listens to input.
-import { AWNING_COLORS, BEACH_SIGN_NAMES, COLORS, FIRST_ROAD, MARKET, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, UMBRELLA_COLORS, WORLD } from './config.js';
+import { AWNING_COLORS, BEACH_SIGN_NAMES, COLORS, FIRST_ROAD, HARBOUR_LIGHTS, MARKET, NEON_COLORS, ROAD_GAP, ROAD_WIDTH, SIGNAL_CYCLE, SIGN_NAMES, UMBRELLA_COLORS, WORLD } from './config.js';
 import { clamp, intRange, pick, range, vary } from './random.js';
 
 export const ROADS = [];
@@ -150,6 +150,14 @@ export const TRAIN_STATIONS = [
 // Where a passenger steps off the north platform: on the sidewalk below the station,
 // the spot the story's station job sends Rico to.
 export const STATION_MEET = { x: 1200, y: RAIL_MIN + 62 };
+// Where a passenger steps off the south platform: on the sidewalk above the station,
+// the spot the story's south-station job sends Rico to — the far end of the loop,
+// where the train's dwell feels longest and the avenue runs quiet after dark.
+export const SOUTH_STATION_MEET = { x: 1200, y: RAIL_MAX - 62 };
+// Where a case changes hands on the marina pier: out on the boards past the waterline,
+// under the festoon lights, with the boats bobbing below — the spot the story's
+// harbour-lights job sends Rico to.
+export const HARBOUR_MEET = { x: 1915, y: 2330 };
 
 // ---------------------------------------------------------------------------
 // The airfield circuit. The plane flies a rounded rectangle in the sky: east along the
@@ -306,6 +314,10 @@ export function createCity(random) {
   const marketLights = []; // the night market's string-light spans, post to post across the plaza
   const marketPosts = []; // the poles the market's string lights hang from
   const marketLanterns = []; // paper lanterns hung from the spans, each with its own sway phase
+  const pierLights = []; // festoon lights strung along the marina pier, warm dots over the boards
+  for (let i = 0; i < HARBOUR_LIGHTS; i += 1) {
+    pierLights.push({ x: PIER.x + 4 + (i * (PIER.w - 8)) / Math.max(1, HARBOUR_LIGHTS - 1), y: PIER.from + 14 + i * ((PIER.to - PIER.from - 28) / Math.max(1, HARBOUR_LIGHTS - 1)), phase: random() * Math.PI * 2 });
+  }
   const signals = []; // a traffic signal at every intersection, phased off the shared cycle
   // The viaduct's pillars: a post under the track every 120 units, standing in the
   // middle of the avenues the loop rides. Pure geometry — no randomness — so the
@@ -595,6 +607,13 @@ export function createCity(random) {
   for (let i = 0; i < 7; i += 1) {
     props.push({ x: 1830 + random() * 260, y: 2288 + random() * 22, w: 20, h: 20, kind: 'crate', angle: random() * 0.6 - 0.3 });
   }
+  // The pier's own stack: crates and barrels waiting by the festoon lights, where the
+  // harbour crew loads the boats after dark — more cover for a fight on the boards.
+  for (let i = 0; i < 4; i += 1) {
+    props.push({ x: 1852 + i * 44 + range(random, -8, 8), y: 2290 + range(random, -4, 8), w: 18, h: 18, kind: 'crate', angle: random() * 0.5 - 0.25 });
+  }
+  props.push({ x: 1986, y: 2294, w: 13, h: 13, kind: 'barrel', angle: 0 });
+  props.push({ x: 2002, y: 2300, w: 13, h: 13, kind: 'barrel', angle: 0 });
   // Bins along the boardwalk, between the palms: even the promenade has its small print.
   for (let i = 0; i < 3; i += 1) {
     props.push({ x: 420 + i * 700 + range(random, -30, 30), y: 2290, w: 10, h: 10, kind: 'bin', angle: 0 });
@@ -655,7 +674,7 @@ export function createCity(random) {
     skyline.push({ x: WORLD, y: sy, w, h: 55 + random() * 70, side: 'east' });
     sy += w + 4 + random() * 22;
   }
-  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, rail, airport, market: { bounds: MARKET_BOUNDS, stage: MARKET_STAGE, meet: MARKET_MEET, posts: marketPosts, lights: marketLights, lanterns: marketLanterns } };
+  return { buildings, trees, lamps, props, fountains, boats, buoys, yards, cranes, skyline, signals, resorts, pools, umbrellas, loungers, kiosks, lifeguards, pierLights, rail, airport, market: { bounds: MARKET_BOUNDS, stage: MARKET_STAGE, meet: MARKET_MEET, posts: marketPosts, lights: marketLights, lanterns: marketLanterns } };
 }
 
 /** A parking spot beside a street: used for parked cars and mission cars. The spot sits close

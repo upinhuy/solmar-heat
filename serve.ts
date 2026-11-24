@@ -32,7 +32,7 @@ const hostIndex = args.indexOf('--host');
 const host = hostIndex === -1 ? '127.0.0.1' : String(args[hostIndex + 1] || '127.0.0.1');
 
 // The scene names game/src/shots.js stages behind ?shot=, for the /__version health check.
-const SHOTS = ['start', 'drive', 'chase', 'mission', 'showdown', 'skyline', 'rain', 'port', 'heli', 'beach', 'train', 'storm', 'airport', 'market', 'spikes'];
+const SHOTS = ['start', 'drive', 'chase', 'mission', 'showdown', 'skyline', 'rain', 'port', 'heli', 'beach', 'train', 'storm', 'airport', 'market', 'spikes', 'harbour'];
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -82,7 +82,7 @@ createServer((request, response) => {
     // serves, which version of it, and which screenshot scenes it can stage, without downloading any of it.
     // The features list names what this build added over the last one, so a smoke
     // script can assert it is talking to the right version before it starts a browser.
-    const body = JSON.stringify({ game: 'Solmar Heat', version: 'v9', files: 'game/', shots: SHOTS, features: ['night-market-10-stalls', 'paper-lanterns', 'band-sets', 'spike-deploy-animation', 'spike-chevrons', 'tyre-repair-bays'], ok: true });
+    const body = JSON.stringify({ game: 'Solmar Heat', version: 'v10', files: 'game/', shots: SHOTS, features: ['south-station-job', 'harbour-lights-pier-job', 'pier-festoon-lights', 'denser-downtown', 'offscreen-culling', 'photo-mode', 'boat-horn'], ok: true });
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
     response.end(request.method === 'HEAD' ? undefined : body);
     return;

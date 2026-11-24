@@ -1,8 +1,8 @@
 // Cars and people: the player driving, traffic following the streets (and yielding instead
 // of piling up — and easing off along the coast road, where the promenade crowds cross to
 // the beach), pedestrians on the sidewalks who scatter when a car comes at them fast,
-// bullets and particles. Cars come in several body shapes — sedan, hatchback, pickup, van,
-// the low sport shape, a long limousine and a narrow motorcycle with a rider — each with
+// bullets and particles. Cars come in several body shapes — sedan, hatchback, estate wagon,
+// pickup, van, the low sport shape, a long limousine and a narrow motorcycle with a rider — each with
 // its own size, and the odd yellow taxi among the sedans. Brake lights flare when a car
 // slows hard, and police light bars each flash on their own phase. Cars also carry their
 // history with them: every hard impact adds to a car's damage, and a badly damaged car
@@ -11,7 +11,7 @@
 // a thud. The airfield's prop plane leaves a different trail: thin white puffs off its
 // wingtips while it climbs, gone a second later.
 import { CAR, MARKET, PED_SPEED, PLAYER, REPAIR, ROAD_WIDTH, SPIKE, TRAFFIC_SPEED, WORLD } from './config.js';
-import { angleDelta, clamp, distance, intRange, pick, range } from './random.js';
+import { angleDelta, clamp, distance, intRange, pick, pickWeighted, range } from './random.js';
 import { gridTarget, hitsBuilding, MARKET_BOUNDS, MARKET_STAGE, nearestRoadLine, nearestRoadPoint, parkingSpot, randomRoadPoint, signalPhase, ROADS } from './world.js';
 
 const CAR_COLORS = [
@@ -28,13 +28,14 @@ const PED_SKIN = ['#e8c39a', '#c98e5f', '#8a5a34', '#f2d3ac', '#6e4525'];
 export const CAR_SHAPES = {
   sedan: { len: 46, wid: 24, radius: 17 },
   hatch: { len: 40, wid: 23, radius: 16 },
+  estate: { len: 48, wid: 24, radius: 17 }, // the long-roofed wagon, new to the fleet
   pickup: { len: 48, wid: 24, radius: 17 },
   van: { len: 56, wid: 26, radius: 19 },
   sport: { len: 44, wid: 23, radius: 16 },
   limo: { len: 68, wid: 25, radius: 21 },
   moto: { len: 30, wid: 11, radius: 10 },
 };
-const CIVILIAN_SHAPES = ['sedan', 'sedan', 'hatch', 'hatch', 'pickup', 'van'];
+const CIVILIAN_SHAPES = ['sedan', 'sedan', 'hatch', 'hatch', 'estate', 'pickup', 'van'];
 
 let nextCarId = 1;
 
@@ -45,9 +46,13 @@ export function makeCar(random, opts) {
   if (!shape) {
     if (kind === 'sport') shape = 'sport';
     else if (kind === 'police' || kind === 'mission') shape = 'sedan';
-    else if (random() < 0.08) shape = 'moto'; // the odd motorcycle weaving through traffic
-    else if (random() < 0.06) shape = 'limo'; // and, rarer still, a limousine
-    else shape = pick(random, CIVILIAN_SHAPES);
+    else {
+      // One weighted roll instead of two coin flips: the odd motorcycle weaving
+      // through traffic, rarer still a limousine, and the everyday shapes sharing
+      // the rest — the estate wagon joined the fleet this version.
+      shape = pickWeighted(random, [['moto', 8], ['limo', 6], ['civilian', 86]]);
+      if (shape === 'civilian') shape = pick(random, CIVILIAN_SHAPES);
+    }
   }
   const body = CAR_SHAPES[shape];
   // A share of the civilian sedans are taxis: yellow, with a roof sign the renderer adds.

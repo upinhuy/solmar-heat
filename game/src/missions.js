@@ -1,5 +1,5 @@
 // The story of Solmar Heat: Rico Vega, new in town, working jobs for Mara Solis and her crew.
-// Twenty-two missions in order, each a small state machine with an objective, a map marker,
+// Twenty-four missions in order, each a small state machine with an objective, a map marker,
 // dialogue and a cash reward. A failed mission restarts itself; finishing one starts the
 // next. Two jobs work the beach resort district: a meet on
 // the sand that turns into a firefight among the umbrellas, and a timed run in a marked
@@ -7,7 +7,10 @@
 // before the finale work the night market quarter and its streets: a meet by the festival
 // stage that turns into a firefight among the ten stalls, and a four-star getaway in a
 // stolen coupe down Spike Alley, where the police lay strips across the road ahead. The
-// two jobs before those work the elevated railway: a courier's handoff under Estacion Norte
+// two jobs before those work the south station and the marina pier: a courier steps off
+// the elevated line at Estacion Sur with a case for the crew, and a rival crew guards a
+// case on the pier under the festoon lights, four guns between Rico and the boards.
+// The two jobs before those work the elevated railway: a courier's handoff under Estacion Norte
 // that turns into a timed getaway, and an ambush under the viaduct where a rival crew
 // tries to take a case back by force. The two jobs before those work the airfield on the
 // north edge: a pilot lands a case in the middle of a thunderstorm and Rico drives it
@@ -20,7 +23,7 @@
 // from the depot — they run on their own state, alongside whatever the story is doing.
 import { distance } from './random.js';
 import { cashBurst, makeCar, makePed, makeSportCar, muzzleFlash } from './vehicles.js';
-import { AIRPORT_CAR, AIRPORT_MEET, AIRSTRIP, BEACH_DROP, BEACH_MEET, COAST_PARK, MARINA, MARKET_MEET, PORT_SPOT, SHOWROOM_SPOT, STATION_MEET, AIR_LOOP_LENGTH, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
+import { AIRPORT_CAR, AIRPORT_MEET, AIRSTRIP, BEACH_DROP, BEACH_MEET, COAST_PARK, HARBOUR_MEET, MARINA, MARKET_MEET, PORT_SPOT, SHOWROOM_SPOT, SOUTH_STATION_MEET, STATION_MEET, AIR_LOOP_LENGTH, parkingSpot, randomRoadPoint, resolveBuildings } from './world.js';
 import { addWanted, setWanted } from './police.js';
 
 export const HIDEOUT = { x: 150, y: 2100 };
@@ -182,6 +185,21 @@ export const MISSIONS = [
     intro: ['Mara Solis: "The blue coupe on the avenue west of the market, Rico — and the PD is laying strips tonight."', '"Four stars the moment you touch the wheel. Swerve around the strips, beat the roadblocks, one hundred and fifteen seconds to the drop — and if a strip does catch you, the repair bays on the avenue and the coast road will swap your tyres."'],
     objectives: ['Steal the marked coupe', 'Reach the drop before the clock runs out — a repair bay swaps shredded tyres'],
     timer: 115,
+  },
+  {
+    id: 'southstation',
+    name: 'The South Station',
+    reward: 5800,
+    intro: ['Mara Solis: "The courier rides the elevated line to the far end this time, Rico — Estacion Sur, the south station."', '"Meet him under the platform, on foot. The cream coupe is yours for the ride home — one hundred and five seconds, and the PD watches the platforms."'],
+    objectives: ['Meet the courier under Estacion Sur', 'Get in the cream coupe', 'Reach the hideout before the clock runs out'],
+    timer: 105,
+  },
+  {
+    id: 'harbourlights',
+    name: 'Harbour Lights',
+    reward: 6000,
+    intro: ['Mara Solis: "The harbour crew is moving a case along the pier tonight, Rico — under the festoon lights, where the boats bob."', '"Four of them guard it on the boards. Drop them, take the case, and bring it home — the patrol will be wide awake."'],
+    objectives: ['Go to the pier at the marina', 'Drop all four of them', 'Grab the cash case', 'Bring the case to the hideout'],
   },
   {
     id: 'finale',
@@ -392,6 +410,20 @@ export function startMission(game, index) {
     game.cars.push(car);
     m.missionCar = car;
     m.marker = { x: car.x, y: car.y };
+  } else if (def.id === 'southstation') {
+    // The courier steps off the train at Estacion Sur and waits under the south
+    // platform; the getaway coupe stands kerbside on the south avenue, facing east.
+    m.contact = { x: SOUTH_STATION_MEET.x, y: SOUTH_STATION_MEET.y, angle: Math.PI / 2, shirt: '#7a5fb0', target: null, down: 0, fade: 0, walkPhase: 0, contact: true };
+    game.peds.push(m.contact);
+    const coupe = makeCar(game.rng, { x: 1010, y: 1920, angle: 0, kind: 'mission', shape: 'sport', color: '#e8e3d0', missionCar: true });
+    game.cars.push(coupe);
+    m.missionCar = coupe;
+    m.marker = { x: SOUTH_STATION_MEET.x, y: SOUTH_STATION_MEET.y };
+  } else if (def.id === 'harbourlights') {
+    // The case waits on the marina pier itself, under the festoon lights, where the
+    // harbour crew guards it with the boats bobbing below the boards.
+    m.casePoint = { x: HARBOUR_MEET.x, y: HARBOUR_MEET.y };
+    m.marker = { x: HARBOUR_MEET.x, y: HARBOUR_MEET.y };
   } else if (def.id === 'finale') {
     const car = makeSportCar(game.rng, SHOWROOM_SPOT.x, SHOWROOM_SPOT.y);
     car.angle = SHOWROOM_SPOT.angle;
@@ -474,9 +506,10 @@ export function currentObjective(game) {
   if (def.id === 'rushhour' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'coastrun' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'station' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
+  if (def.id === 'southstation' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'stormrun' && m.step === 2) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
   if (def.id === 'spikes' && m.step === 1) text += ` — ${Math.max(0, Math.ceil(m.timer))}s left`;
-  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk' || def.id === 'ambush' || def.id === 'airlift' || def.id === 'market') && m.step === 1) {
+  if ((def.id === 'showdown' || def.id === 'shipyard' || def.id === 'boardwalk' || def.id === 'ambush' || def.id === 'airlift' || def.id === 'market' || def.id === 'harbourlights') && m.step === 1) {
     const down = m.hostiles.filter((h) => h.down > 0).length;
     text += ` — ${down} of ${m.hostiles.length} down`;
   }
@@ -1059,6 +1092,71 @@ export function updateMissions(game, dt, events) {
       if (distance(player.x, player.y, m.door.x, m.door.y) < 75 && player.inCar) {
         finishMission(game, events);
       }
+    }
+  } else if (def.id === 'southstation') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.contact.x, m.contact.y) < 46 && !player.inCar) {
+        // The handoff: the courier melts back into the south platform crowd with the
+        // case in Rico's hands, and the clock starts on the ride home.
+        game.peds = game.peds.filter((p) => p !== m.contact);
+        m.contact = null;
+        m.step = 1;
+        m.marker = { x: m.missionCar.x, y: m.missionCar.y };
+        say(game, ['Courier: "Off the Sur train, friend. The case is yours — the coupe, quickly."']);
+      }
+    } else if (m.step === 1) {
+      if (player.inCar && player.car === m.missionCar) {
+        m.step = 2;
+        m.timer = def.timer || 105;
+        setWanted(game.police, 2);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Two stars saw the handoff. One hundred and five seconds — bring the case home, Rico."']);
+      }
+    } else {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        failMission(game, 'Too slow — the buyer at the hideout stopped waiting.');
+        return;
+      }
+      if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar && player.car === m.missionCar) {
+        finishMission(game, events);
+      }
+    }
+  } else if (def.id === 'harbourlights') {
+    if (m.step === 0) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 70) {
+        m.step = 1;
+        // The harbour crew spreads along the pier and the boards by it: harbour
+        // blue shirts, long guns, and the case on the planks between the festoon lights.
+        const offsets = [[-58, -28], [58, -22], [-34, 38], [46, 34]];
+        m.hostiles = offsets.map(([ox, oy]) => {
+          const h = makePed(game.rng, m.casePoint.x + ox, m.casePoint.y + oy);
+          h.shirt = '#2c6e9e';
+          h.hostile = true;
+          h.shootCd = 0.9 + game.rng() * 0.9;
+          game.peds.push(h);
+          return h;
+        });
+        addWanted(game.police, 1);
+        m.marker = null;
+        say(game, ['Harbour boss: "Wrong pier, Vega. The case stays with the boats."']);
+      }
+    } else if (m.step === 1) {
+      updateHostiles(game, dt, events);
+      if (m.hostiles.every((h) => h.down > 0)) {
+        m.step = 2;
+        m.marker = { x: m.casePoint.x, y: m.casePoint.y };
+        say(game, ['Mara Solis: "Quiet on the pier. Grab the case, Rico."']);
+      }
+    } else if (m.step === 2) {
+      if (distance(player.x, player.y, m.casePoint.x, m.casePoint.y) < 50 && !player.inCar) {
+        m.step = 3;
+        setWanted(game.police, 3);
+        m.marker = { x: HIDEOUT.x, y: HIDEOUT.y };
+        say(game, ['Mara Solis: "Case is yours. Three stars over the harbour lights — bring it home."']);
+      }
+    } else if (distance(player.x, player.y, HIDEOUT.x, HIDEOUT.y) < 90 && player.inCar) {
+      finishMission(game, events);
     }
   } else if (def.id === 'finale') {
     if (m.step === 0) {

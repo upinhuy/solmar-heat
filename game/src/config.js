@@ -24,11 +24,13 @@ export const PLAYER = {
 // How much of the city is alive when a run starts. More traffic and more pedestrians make
 // the streets feel crowded, which is what the screenshots and the driving both feed on.
 // This version crowds downtown harder: half again as many moving cars, a dozen more
-// pedestrians and more parked cars at the kerbs.
+// pedestrians and more parked cars at the kerbs. v10 crowds it harder still — four more
+// cars working the loop and eight more people on the sidewalks, so the midday frame
+// never reads as an empty street.
 export const CITY_POPULATION = {
-  parkedCars: 20,
-  trafficCars: 30,
-  pedestrians: 58,
+  parkedCars: 22,
+  trafficCars: 34,
+  pedestrians: 66,
 };
 
 // Traffic signals run on one shared cycle, in seconds: five of green for one direction,
@@ -48,7 +50,7 @@ export const TRAIN = {
   speed: 128, // cruise speed along the loop
   accel: 70, // how briskly it pulls away from a station
   brake: 120, // how firmly it slows for one
-  dwell: 3.4, // seconds held at a station with the doors open
+  dwell: 3.6, // seconds held at a station with the doors open — a touch longer now, so the south-station job can watch a whole stop
   brakeZone: 170, // distance out from a station where the braking starts
 };
 
@@ -89,7 +91,7 @@ export const STORM = {
 export const MARKET = {
   stalls: 10, // food and flower and book stalls ringing the plaza
   crowdDay: 10, // market browsers by day
-  crowdNight: 22, // and by night, when the lanterns are lit
+  crowdNight: 26, // and by night, when the lanterns are lit — four more than before, so the plaza reads full
   spawnEvery: 1.5, // seconds between extra browsers arriving after dark
   murmurRange: 620, // how far the market's hum carries
   lanterns: 6, // paper lanterns hung from the string-light spans
@@ -97,6 +99,11 @@ export const MARKET = {
   setOff: 15, // seconds of quiet between sets
   gatherRadius: 70, // how close to the stage the crowd gathers during a set
 };
+
+// The marina pier after dark: festoon lights strung along the boards, warm dots over
+// the water, so the harbour-lights job has its own glow — and so the pier reads at
+// night from the boardwalk instead of vanishing into the dark.
+export const HARBOUR_LIGHTS = 5; // festoon bulbs along the pier
 
 // Police spike strips: at four stars and above the PD lays a strip across the road
 // ahead, ahead of the roadblock. A car that crosses one shreds its tyres — speed and

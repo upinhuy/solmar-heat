@@ -29,6 +29,20 @@ export function pick(random, list) {
   return list[Math.floor(random() * list.length)];
 }
 
+/** One entry of `pairs` — [[value, weight], ...] — by its weight: the traffic's
+ * body-shape roll, where motorcycles and limousines are rare and the everyday
+ * shapes share the rest, without nesting coin flips that each eat a random draw. */
+export function pickWeighted(random, pairs) {
+  let total = 0;
+  for (const [, w] of pairs) total += w;
+  let roll = random() * total;
+  for (const [value, w] of pairs) {
+    roll -= w;
+    if (roll <= 0) return value;
+  }
+  return pairs[pairs.length - 1][0];
+}
+
 /** True with probability p: the coin flips the city dressing makes (a taxi here, a
  * helicopter's approach side there) without open-coding the comparison everywhere. */
 export function chance(random, p) {

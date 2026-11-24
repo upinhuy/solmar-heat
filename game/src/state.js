@@ -147,6 +147,7 @@ export function createGame(seed, saved) {
     dialogue: null,
     objectiveText: '',
     audio: null,
+    sepTick: 0, // the traffic-separation pass runs every other step; see stepGame
     save() {
       saveGame(game);
     },
@@ -552,20 +553,25 @@ export function stepGame(game, input, dt) {
   }
   // Gentle separation so moving traffic does not stack on one spot. Parked cars, mission
   // cars and the player's car are never shoved: a shove could push one into a building,
-  // where the collision code would wedge it forever.
-  const movers = game.cars.filter((c) => c.traffic || c.police);
-  for (const car of movers) {
-    for (const other of movers) {
-      if (other === car) continue;
-      const d = distance(car.x, car.y, other.x, other.y);
-      if (d > 0 && d < 40) {
-        const push = (40 - d) / 2;
-        const a = Math.atan2(car.y - other.y, car.x - other.x);
-        const nx = car.x + Math.cos(a) * push * 0.5;
-        const ny = car.y + Math.sin(a) * push * 0.5;
-        if (!hitsBuilding(game.city.buildings, nx, ny, 17)) {
-          car.x = nx;
-          car.y = ny;
+  // where the collision code would wedge it forever. The pass runs every other step:
+  // at sixty steps a second the shove is still smooth, and the city does half the
+  // pair-checking it used to — the denser downtown in v10 needs the headroom.
+  game.sepTick = (game.sepTick + 1) % 2;
+  if (game.sepTick === 0) {
+    const movers = game.cars.filter((c) => c.traffic || c.police);
+    for (const car of movers) {
+      for (const other of movers) {
+        if (other === car) continue;
+        const d = distance(car.x, car.y, other.x, other.y);
+        if (d > 0 && d < 40) {
+          const push = (40 - d) / 2;
+          const a = Math.atan2(car.y - other.y, car.x - other.x);
+          const nx = car.x + Math.cos(a) * push * 0.5;
+          const ny = car.y + Math.sin(a) * push * 0.5;
+          if (!hitsBuilding(game.city.buildings, nx, ny, 17)) {
+            car.x = nx;
+            car.y = ny;
+          }
         }
       }
     }
@@ -593,13 +599,13 @@ export function stepGame(game, input, dt) {
       if (bay.cooldown <= 0) bay.active = true;
     }
   }
-  // The night market breathes with the clock: after dark the crowd thickens toward
-  // MARKET.crowdNight, one browser at a time; by day it thins back to crowdDay.
-  // Market browsers never leave the plaza — updatePed keeps them inside it.
+  // The night market breathes with the clock: from golden hour onward the crowd
+  // thickens toward MARKET.crowdNight, one browser at a time; by day it thins back
+  // to crowdDay. Market browsers never leave the plaza — updatePed keeps them inside it.
   game.marketTimer -= dt;
   const marketCount = game.peds.filter((p) => p.market).length;
   const hour = (game.clock / 60) % 24;
-  const night = hour >= 19 || hour < 5;
+  const night = hour >= 17 || hour < 5;
   if (night && marketCount < MARKET.crowdNight && game.marketTimer <= 0) {
     game.marketTimer = MARKET.spawnEvery;
     game.peds.push(makeMarketPed(game.rng));
